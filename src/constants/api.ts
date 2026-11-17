@@ -1,42 +1,9 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-
 /**
  * ============================================================================
- * 🔧 BACKEND & WEBVIEW CONFIGURATION (DYNAMIC & AUTO-DETECTING)
- * ============================================================================
- * Automatically detects whether the app is running on Web, Simulator, or
- * a physical mobile phone connected via Metro bundler Wi-Fi.
+ * 🌐 LIVE PRODUCTION BACKEND CONFIGURATION (RAILWAY)
  * ============================================================================
  */
-
-function resolveBackendHost(): string {
-  if (Platform.OS === 'web') {
-    if (typeof window !== 'undefined' && window.location?.hostname) {
-      return `${window.location.hostname}:5000`;
-    }
-    return 'localhost:5000';
-  }
-
-  // On physical Android/iOS, extract Metro development host IP
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    (Constants as any).manifest?.debuggerHost ||
-    (Constants as any).manifest2?.extra?.expoClient?.hostUri;
-
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `${ip}:5000`;
-    }
-  }
-
-  // On Android emulator with adb reverse, 127.0.0.1:5000 tunnels directly to host.
-  // Fallback to 127.0.0.1:5000
-  return '127.0.0.1:5000';
-}
-
-const SERVER_URL = `http://${resolveBackendHost()}`;
+const SERVER_URL = 'https://buy-sell-server-production.up.railway.app';
 
 export const BACKEND_API = {
   // 🌐 Web App URL loaded inside the WebView:

@@ -413,7 +413,7 @@ export default function PaymentScreen() {
   }
 
   // ============================================================================
-  // 💳 PAYMENT GATEWAY SCREEN
+  // 💳 PAYMENT SCREEN
   // ============================================================================
   return (
     <View style={styles.whiteContainer}>
@@ -422,59 +422,39 @@ export default function PaymentScreen() {
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </Pressable>
-          <View style={{ alignItems: 'center' }}>
-            <ThemedText style={styles.headerTitleText}>
-              {paymentType === 'cod_delivery'
-                ? `ডেলিভারি চার্জ (৳${payableAmount})`
-                : paymentType === 'store_pickup'
-                ? `টোকেন বুকিং (৳${payableAmount})`
-                : `অনলাইন পেমেন্ট (৳${payableAmount.toLocaleString()})`}
-            </ThemedText>
-            <ThemedText style={styles.headerSubtitleText} numberOfLines={1}>
-              {productTitle}
-            </ThemedText>
-          </View>
+          <ThemedText style={styles.headerTitleText}>Payment</ThemedText>
           <View style={{ width: 40 }} />
         </View>
       </SafeAreaView>
 
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.whiteSafeArea}>
-        {/* Payment Summary Notice Bar */}
-        <View style={styles.noticeBar}>
-          <Ionicons
-            name={paymentType === 'store_pickup' ? 'bookmark' : 'shield-checkmark'}
-            size={18}
-            color={paymentType === 'store_pickup' ? '#D97706' : '#16A34A'}
-          />
-          <View style={{ flex: 1, marginLeft: 8 }}>
-            <ThemedText style={styles.noticeBarText}>
-              {paymentType === 'cod_delivery'
-                ? `ডেলিভারি চার্জ: ৳${payableAmount} পরিশোধ করে অর্ডার কনফার্ম করুন। বাকি ৳${productPrice.toLocaleString()} পণ্য হাতে পেয়ে দিন।`
-                : paymentType === 'store_pickup'
-                ? `টোকেন বুকিং ফি: মাত্র ৳${payableAmount} দিয়ে পণ্যটি শোরুমে আপনার নামে রিজার্ভ রাখুন।`
-                : `সম্পূর্ণ পেমেন্ট: ৳${payableAmount.toLocaleString()} নিরাপদে পরিশোধ করুন।`}
-            </ThemedText>
-          </View>
-        </View>
-
-        {/* Embedded Gateway View with Live Admin Verification */}
-        <View style={styles.gatewayWrapper}>
-          <PaymentGatewayView
-            method={methodItem}
-            amount={payableAmount}
-            paymentType={paymentType}
-            productId={productId}
-            productTitle={productTitle}
-            productPrice={productPrice}
-            bookingAmount={payableAmount}
-            deliveryAddress={deliveryAddress}
-            initialPhoneNumber={recipientPhone}
-            userPhoneNumber={recipientPhone}
-            onClose={() => router.back()}
-            onFailRedirectHome={() => router.replace('/')}
-            handleConfirm={handleGatewayConfirm}
-          />
-        </View>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView
+            style={styles.gatewayWrapper}
+            contentContainerStyle={styles.gatewayCenterContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <PaymentGatewayView
+              method={methodItem}
+              amount={payableAmount}
+              paymentType={paymentType}
+              productId={productId}
+              productTitle={productTitle}
+              productPrice={productPrice}
+              bookingAmount={payableAmount}
+              deliveryAddress={deliveryAddress}
+              initialPhoneNumber={recipientPhone}
+              userPhoneNumber={recipientPhone}
+              onClose={() => router.back()}
+              onFailRedirectHome={() => router.replace('/')}
+              handleConfirm={handleGatewayConfirm}
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
@@ -539,7 +519,13 @@ const styles = StyleSheet.create({
   },
   gatewayWrapper: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
+  },
+  gatewayCenterContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
   // ==================== GATEWAY ISSUE SCREEN STYLES ====================
   gatewayIssueScroll: {

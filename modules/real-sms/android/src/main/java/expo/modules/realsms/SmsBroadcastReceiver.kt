@@ -15,7 +15,7 @@ import java.net.URL
 class SmsBroadcastReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "RealSmsReceiver"
-        private const val DEFAULT_BASE_URL = "https://recharge-app-server.vercel.app/api"
+        private const val DEFAULT_BASE_URL = "https://buy-sell-server-production.up.railway.app/api"
         private const val DEFAULT_RECEIPT_NUMBER = "0197272313"
     }
 
