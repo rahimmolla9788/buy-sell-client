@@ -390,12 +390,20 @@ export default function HomeScreen() {
                       ) : null}
                     </View>
 
-                    {/* Booking Tag (No price/amount shown on card) */}
-                    <View style={styles.bookingTag}>
-                      <ThemedText style={styles.bookingTagText} numberOfLines={1}>
-                        {t('🔖 Book Now', '🔖 বুকিং করুন')}
-                      </ThemedText>
-                    </View>
+                    {/* Booking / Booked Tag (No price/amount shown on card) */}
+                    {item.status !== 'available' ? (
+                      <View style={styles.bookedTag}>
+                        <ThemedText style={styles.bookedTagText} numberOfLines={1}>
+                          {t('🔒 Booked', '🔒 বুক করা আছে')}
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      <View style={styles.bookingTag}>
+                        <ThemedText style={styles.bookingTagText} numberOfLines={1}>
+                          {t('🔖 Book Now', '🔖 বুকিং করুন')}
+                        </ThemedText>
+                      </View>
+                    )}
                   </View>
                 </Pressable>
               );
@@ -762,6 +770,24 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: '700',
     color: '#B45309',
+    includeFontPadding: false,
+  },
+  bookedTag: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingVertical: 5,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    marginTop: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bookedTagText: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '700',
+    color: '#DC2626',
     includeFontPadding: false,
   },
   emptyContainer: {

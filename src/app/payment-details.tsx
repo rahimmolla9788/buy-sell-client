@@ -188,10 +188,18 @@ export default function PaymentDetailsScreen() {
     const handleSettingsUpdated = (updated: AppSettings) => {
       if (mounted && updated) setAppSettings((prev) => ({ ...prev, ...updated }));
     };
+    const handleProductsUpdated = (updatedList: SecondHandProduct[]) => {
+      if (mounted && Array.isArray(updatedList) && activeId) {
+        const found = updatedList.find((p) => p.id === activeId);
+        if (found) setProduct(found);
+      }
+    };
     socket.on('settings-updated', handleSettingsUpdated);
+    socket.on('products-updated', handleProductsUpdated);
     return () => {
       mounted = false;
       socket.off('settings-updated', handleSettingsUpdated);
+      socket.off('products-updated', handleProductsUpdated);
     };
   }, [activeId]);
 
@@ -217,6 +225,7 @@ export default function PaymentDetailsScreen() {
   const productPrice = product?.price || 0;
   const originalPrice = product?.originalPrice || null;
   const savings = originalPrice && originalPrice > productPrice ? originalPrice - productPrice : 0;
+  const isProductBooked = !product || product.status !== 'available';
 
   // Payable amount & Remaining amount calculation
   const { payableAmount, remainingAmount, paymentTypeForBackend } = useMemo(() => {
@@ -246,6 +255,22 @@ export default function PaymentDetailsScreen() {
 
   // Handle Proceed to Payment
   const handleProceedToPayment = () => {
+    if (isProductBooked) {
+      if (Platform.OS !== 'web') {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        } catch {}
+      }
+      Alert.alert(
+        t('Product Already Booked', 'পণ্যটি বুক করা আছে'),
+        t(
+          'This product is currently booked and cannot be booked or ordered right now.',
+          'এই পণ্যটি বর্তমানে বুক করা অবস্থায় আছে, তাই এখন বুকিং বা পেমেন্ট করা যাবে না।'
+        )
+      );
+      return;
+    }
+
     if (!buyerPhone || buyerPhone.length < 11) {
       Alert.alert('নম্বর দিন', 'অনুগ্রহ করে সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন।');
       return;
@@ -316,10 +341,14 @@ export default function PaymentDetailsScreen() {
           </Pressable>
           <View style={{ flex: 1, marginLeft: 8 }}>
             <ThemedText style={styles.headerTitle} numberOfLines={1}>
-              {t('Product Details & Payment', 'পণ্যের বিস্তারিত ও পেমেন্ট')}
+              {isProductBooked
+                ? t('Product Details', 'পণ্যের বিস্তারিত')
+                : t('Product Details & Payment', 'পণ্যের বিস্তারিত ও পেমেন্ট')}
             </ThemedText>
-            <ThemedText style={styles.headerSubtitle}>
-              {deliveryOption === 'home_delivery'
+            <ThemedText style={[styles.headerSubtitle, isProductBooked && { color: '#DC2626' }]}>
+              {isProductBooked
+                ? t('🔒 Booked', '🔒 পণ্যটি বুক করা আছে')
+                : deliveryOption === 'home_delivery'
                 ? t(`Delivery Charge (৳${payableAmount})`, `ডেলিভারি চার্জ (৳${payableAmount})`)
                 : deliveryOption === 'store_pickup'
                 ? t(`Token Booking (৳${payableAmount})`, `টোকেন বুকিং (৳${payableAmount})`)
@@ -459,9 +488,40 @@ export default function PaymentDetailsScreen() {
                   ৳ {productPrice.toLocaleString()}
                 </ThemedText>
               </View>
+              {isProductBooked ? (
+                <View style={styles.bookedStatusPill}>
+                  <Ionicons name="lock-closed" size={13} color="#DC2626" />
+                  <ThemedText style={styles.bookedStatusPillText} numberOfLines={1}>
+                    {t('Booked', 'বুক করা আছে')}
+                  </ThemedText>
+                </View>
+              ) : null}
             </View>
           </View>
 
+          {/* Booked Notice Banner when Product is Booked */}
+          {isProductBooked ? (
+            <View style={styles.bookedNoticeCard}>
+              <View style={styles.bookedNoticeIconWrap}>
+                <Ionicons name="lock-closed" size={22} color="#DC2626" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.bookedNoticeTitle}>
+                  {t('This product is already booked', 'পণ্যটি বুক করা আছে')}
+                </ThemedText>
+                <ThemedText style={styles.bookedNoticeDesc}>
+                  {t(
+                    'This product is currently booked. You cannot book or proceed to payment for this item right now.',
+                    'এই পণ্যটি বর্তমানে বুক করা অবস্থায় আছে। তাই এই পণ্যটি এখন বুকিং বা পেমেন্ট করা যাবে না।'
+                  )}
+                </ThemedText>
+              </View>
+            </View>
+          ) : null}
+
+          {/* 3-5. Checkout & Payment Sections (Only shown when product is available) */}
+          {!isProductBooked ? (
+            <>
           {/* 3. Choose Delivery & Payment Option (Compact Cards + Fit Badges) */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
@@ -872,6 +932,8 @@ export default function PaymentDetailsScreen() {
               })}
             </View>
           </View>
+            </>
+          ) : null}
 
           {/* 6. Official Store & Product Details (Single Vendor) */}
           <View style={styles.sectionCard}>
@@ -945,7 +1007,8 @@ export default function PaymentDetailsScreen() {
             ) : null}
           </View>
 
-          {/* 7. Order Summary Box */}
+          {/* 7. Order Summary Box (Only shown when available) */}
+          {!isProductBooked ? (
           <View style={styles.summaryCard}>
             <ThemedText style={styles.summaryTitle}>{t('Order Summary', 'অর্ডার সামারি')}</ThemedText>
 
@@ -1021,33 +1084,45 @@ export default function PaymentDetailsScreen() {
               </View>
             ) : null}
           </View>
+          ) : null}
         </ScrollView>
 
         {/* Bottom Sticky Action Bar */}
         <View style={styles.bottomBar}>
-          <View style={styles.bottomBarInfo}>
-            <ThemedText style={styles.bottomBarLabel}>
-              {deliveryOption === 'home_delivery'
-                ? t('Delivery Charge:', 'প্রদেয় ডেলিভারি চার্জ:')
-                : deliveryOption === 'store_pickup'
-                ? t('Booking Fee:', 'প্রদেয় বুকিং ফি:')
-                : t('Total Payable:', 'মোট পরিশোধ মূল্য:')}
-            </ThemedText>
-            <ThemedText style={styles.bottomBarAmount}>
-              ৳ {payableAmount.toLocaleString()}
-            </ThemedText>
-          </View>
+          {isProductBooked ? (
+            <View style={styles.bookedBottomBanner}>
+              <Ionicons name="lock-closed" size={18} color="#DC2626" />
+              <ThemedText style={styles.bookedBottomBannerText} numberOfLines={1}>
+                {t('This product is already booked', 'পণ্যটি বুক করা আছে')}
+              </ThemedText>
+            </View>
+          ) : (
+            <>
+              <View style={styles.bottomBarInfo}>
+                <ThemedText style={styles.bottomBarLabel}>
+                  {deliveryOption === 'home_delivery'
+                    ? t('Delivery Charge:', 'প্রদেয় ডেলিভারি চার্জ:')
+                    : deliveryOption === 'store_pickup'
+                    ? t('Booking Fee:', 'প্রদেয় বুকিং ফি:')
+                    : t('Total Payable:', 'মোট পরিশোধ মূল্য:')}
+                </ThemedText>
+                <ThemedText style={styles.bottomBarAmount}>
+                  ৳ {payableAmount.toLocaleString()}
+                </ThemedText>
+              </View>
 
-          <Pressable style={styles.payButton} onPress={handleProceedToPayment}>
-            <ThemedText style={styles.payButtonText} numberOfLines={1}>
-              {deliveryOption === 'home_delivery'
-                ? t(`Pay Delivery (৳${payableAmount})`, `ডেলিভারি চার্জ পরিশোধ (৳${payableAmount})`)
-                : deliveryOption === 'store_pickup'
-                ? t(`Book Now (৳${payableAmount})`, `বুকিং সম্পন্ন করুন (৳${payableAmount})`)
-                : t(`Pay Now (৳${payableAmount.toLocaleString()})`, `পেমেন্ট সম্পন্ন করুন (৳${payableAmount.toLocaleString()})`)}
-            </ThemedText>
-            <Ionicons name="arrow-forward" size={18} color="#ffffff" style={{ marginLeft: 6 }} />
-          </Pressable>
+              <Pressable style={styles.payButton} onPress={handleProceedToPayment}>
+                <ThemedText style={styles.payButtonText} numberOfLines={1}>
+                  {deliveryOption === 'home_delivery'
+                    ? t(`Pay Delivery (৳${payableAmount})`, `ডেলিভারি চার্জ পরিশোধ (৳${payableAmount})`)
+                    : deliveryOption === 'store_pickup'
+                    ? t(`Book Now (৳${payableAmount})`, `বুকিং সম্পন্ন করুন (৳${payableAmount})`)
+                    : t(`Pay Now (৳${payableAmount.toLocaleString()})`, `পেমেন্ট সম্পন্ন করুন (৳${payableAmount.toLocaleString()})`)}
+                </ThemedText>
+                <Ionicons name="arrow-forward" size={18} color="#ffffff" style={{ marginLeft: 6 }} />
+              </Pressable>
+            </>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1753,5 +1828,77 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  bookedStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  bookedStatusPillText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    color: '#DC2626',
+    includeFontPadding: false,
+    flexShrink: 0,
+  },
+  bookedNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+  },
+  bookedNoticeIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bookedNoticeTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: '#991B1B',
+    includeFontPadding: false,
+  },
+  bookedNoticeDesc: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: '#B91C1C',
+    marginTop: 3,
+  },
+  bookedBottomBanner: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  bookedBottomBannerText: {
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '700',
+    color: '#DC2626',
+    includeFontPadding: false,
   },
 });

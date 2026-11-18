@@ -48,7 +48,7 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     sellerVerified: true,
     sellerRating: 4.9,
     bookingAmount: 50,
-    status: 'available',
+    status: 'booked',
     featured: true,
     badge: 'হট ডিল',
     specifications: [
@@ -78,7 +78,7 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     sellerVerified: true,
     sellerRating: 4.8,
     bookingAmount: 50,
-    status: 'available',
+    status: 'booked',
     featured: true,
     badge: 'জনপ্রিয়',
     specifications: [
@@ -107,7 +107,7 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     sellerVerified: true,
     sellerRating: 5.0,
     bookingAmount: 50,
-    status: 'available',
+    status: 'booked',
     featured: true,
     badge: 'ভেরিফাইড',
     specifications: [
@@ -136,7 +136,7 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     sellerVerified: true,
     sellerRating: 4.7,
     bookingAmount: 50,
-    status: 'available',
+    status: 'booked',
     featured: false,
     badge: 'জরুরি বিক্রয়',
     specifications: [
@@ -165,7 +165,7 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     sellerVerified: true,
     sellerRating: 4.8,
     bookingAmount: 50,
-    status: 'available',
+    status: 'booked',
     featured: false,
     badge: 'হট ডিল',
     specifications: [
@@ -194,7 +194,7 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     sellerVerified: true,
     sellerRating: 4.9,
     bookingAmount: 50,
-    status: 'available',
+    status: 'booked',
     featured: false,
     badge: 'প্রস্তাবিত',
     specifications: [
@@ -223,7 +223,7 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     sellerVerified: true,
     sellerRating: 4.6,
     bookingAmount: 50,
-    status: 'available',
+    status: 'booked',
     featured: false,
     badge: 'বাজেট ফ্রেন্ডলি',
     specifications: [
@@ -252,7 +252,7 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     sellerVerified: true,
     sellerRating: 4.9,
     bookingAmount: 50,
-    status: 'available',
+    status: 'booked',
     featured: false,
     badge: 'হট ডিল',
     specifications: [
