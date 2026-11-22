@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_API } from '@/constants/api';
-import { SecondHandProduct, AppSettings, UserOrder } from '@/types/product';
+import { SecondHandProduct, AppSettings, UserOrder, DynamicCategory } from '@/types/product';
 import {
   DEFAULT_PRODUCTS,
   DEFAULT_BOOKING_AMOUNT,
@@ -12,6 +12,58 @@ import {
 
 const STORAGE_KEY_PRODUCTS = '@cached_products_v2';
 const STORAGE_KEY_SETTINGS = '@cached_app_settings_v2';
+const STORAGE_KEY_CATEGORIES = '@cached_categories_v2';
+
+/**
+ * Fetch dynamic categories from backend
+ */
+export async function fetchCategories(): Promise<DynamicCategory[]> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+
+    const res = await fetch(`${BACKEND_API.BASE_URL}/categories`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      const json = await res.json();
+      if (json && Array.isArray(json.data) && json.data.length > 0) {
+        const cats: DynamicCategory[] = json.data;
+        AsyncStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(cats)).catch(() => {});
+        return cats;
+      }
+    }
+  } catch (err) {
+    console.log('[ProductService] Failed to fetch categories from backend, using cache/fallback:', err);
+  }
+
+  // Try cached data
+  try {
+    const cached = await AsyncStorage.getItem(STORAGE_KEY_CATEGORIES);
+    if (cached) {
+      const parsed: DynamicCategory[] = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  // Fallback default categories
+  return [
+    { id: 'mobiles', title: 'Mobiles', bangla: 'মোবাইল', icon: 'phone-portrait-outline' },
+    { id: 'computers', title: 'Computers', bangla: 'ল্যাপটপ/পিসি', icon: 'laptop-outline' },
+    { id: 'bikes', title: 'Bikes & Cars', bangla: 'বাইক/গাড়ি', icon: 'bicycle-outline' },
+    { id: 'electronics', title: 'Electronics', bangla: 'টিভি/ইলেকট্রনিক্স', icon: 'tv-outline' },
+    { id: 'appliances', title: 'Appliances', bangla: 'গৃহস্থালি', icon: 'snow-outline' },
+    { id: 'cameras', title: 'Cameras', bangla: 'ক্যামেরা', icon: 'camera-outline' },
+    { id: 'furniture', title: 'Furniture', bangla: 'আসবাবপত্র', icon: 'bed-outline' },
+    { id: 'fashion', title: 'Fashion', bangla: 'ঘড়ি ও ফ্যাশন', icon: 'watch-outline' },
+  ];
+}
 
 /**
  * Fetch 2nd-hand products from backend with optional category & search filter

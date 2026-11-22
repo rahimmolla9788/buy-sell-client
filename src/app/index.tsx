@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   Image,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -23,9 +24,16 @@ import { useLanguage } from '@/context/language-context';
 import { AuthScreen } from '@/components/auth-screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { SecondHandProduct, ProductCategory, AppSettings } from '@/types/product';
-import { PRODUCT_CATEGORIES, DEFAULT_PRODUCTS, DEFAULT_BOOKING_AMOUNT } from '@/constants/products';
-import { fetchProducts, fetchAppSettings } from '@/services/product-service';
+import { SecondHandProduct, ProductCategory, AppSettings, DynamicCategory } from '@/types/product';
+import {
+  DEFAULT_PRODUCTS,
+  DEFAULT_BOOKING_AMOUNT,
+  DEFAULT_DELIVERY_INSIDE_DHAKA,
+  DEFAULT_DELIVERY_OUTSIDE_DHAKA,
+  OFFICIAL_SHOP_LOCATION,
+  OFFICIAL_SHOP_ADDRESS,
+} from '@/constants/products';
+import { fetchProducts, fetchAppSettings, fetchCategories } from '@/services/product-service';
 import { getSocket } from '@/services/socket';
 
 const LOCATIONS = [
@@ -37,6 +45,63 @@ const LOCATIONS = [
   'খুলনা',
   'বরিশাল',
 ];
+
+// Responsive Skeleton Placeholder for Cards & Lists
+function SkeletonItem({ style }: { style: any }) {
+  const pulseAnim = useRef(new Animated.Value(0.35)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.85,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.35,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulseAnim]);
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: pulseAnim,
+          backgroundColor: '#E2E8F0',
+        },
+      ]}
+    />
+  );
+}
+
+function ProductCardSkeleton({ cardWidth }: { cardWidth: number }) {
+  const imageAspectHeight = Math.round(cardWidth / 0.85);
+  return (
+    <View style={[styles.productCard, { width: cardWidth }]}>
+      <SkeletonItem
+        style={{
+          width: '100%',
+          height: imageAspectHeight,
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+        }}
+      />
+      <View style={styles.cardDetails}>
+        <SkeletonItem style={{ width: '80%', height: 14, borderRadius: 4, marginBottom: 6 }} />
+        <SkeletonItem style={{ width: '50%', height: 16, borderRadius: 4, marginBottom: 8 }} />
+        <SkeletonItem style={{ width: '100%', height: 26, borderRadius: 6 }} />
+      </View>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -50,16 +115,22 @@ export default function HomeScreen() {
   }, [screenWidth]);
 
   // Products and Settings State
-  const [products, setProducts] = useState<SecondHandProduct[]>(DEFAULT_PRODUCTS);
+  const [products, setProducts] = useState<SecondHandProduct[]>([]);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [appSettings, setAppSettings] = useState<AppSettings>({
     key: 'global_settings',
     bookingPaymentAmount: DEFAULT_BOOKING_AMOUNT,
+    deliveryFeeInsideDhaka: DEFAULT_DELIVERY_INSIDE_DHAKA,
+    deliveryFeeOutsideDhaka: DEFAULT_DELIVERY_OUTSIDE_DHAKA,
+    shopLocation: OFFICIAL_SHOP_LOCATION,
+    shopAddress: OFFICIAL_SHOP_ADDRESS,
     appName: 'BuySell - সেকেন্ড হ্যান্ড বাজার',
     supportPhone: '0197272313',
     noticeBanner: 'নিরাপদে সেকেন্ড হ্যান্ড পণ্য কিনুন বা টোকেন বুকিং মানি দিয়ে বুক করে রাখুন!',
   });
 
-  const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [categories, setCategories] = useState<DynamicCategory[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>('সকল বাংলাদেশ');
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -68,9 +139,10 @@ export default function HomeScreen() {
   // Load products and settings from backend
   const loadData = useCallback(async () => {
     try {
-      const [fetchedProducts, fetchedSettings] = await Promise.all([
+      const [fetchedProducts, fetchedSettings, fetchedCategories] = await Promise.all([
         fetchProducts(),
         fetchAppSettings(),
+        fetchCategories(),
       ]);
 
       if (fetchedProducts && fetchedProducts.length > 0) {
@@ -79,8 +151,15 @@ export default function HomeScreen() {
       if (fetchedSettings) {
         setAppSettings(fetchedSettings);
       }
+      if (fetchedCategories && fetchedCategories.length > 0) {
+        setCategories(fetchedCategories);
+      }
     } catch (e) {
       console.log('[Home] Error loading backend data:', e);
+      // Fallback only if no products are loaded and fetch fails
+      setProducts((prev) => (prev.length === 0 ? DEFAULT_PRODUCTS : prev));
+    } finally {
+      setIsInitialLoading(false);
     }
   }, []);
 
@@ -97,14 +176,27 @@ export default function HomeScreen() {
       const onSettingsUpdate = (updated: AppSettings) => {
         if (active && updated) setAppSettings(updated);
       };
+      const onCategoriesUpdate = (updatedCategories?: DynamicCategory[]) => {
+        if (active) {
+          if (Array.isArray(updatedCategories) && updatedCategories.length > 0) {
+            setCategories(updatedCategories);
+          } else {
+            fetchCategories().then((cats) => {
+              if (active && cats) setCategories(cats);
+            });
+          }
+        }
+      };
 
       socket.on('products-updated', onProductsUpdate);
       socket.on('settings-updated', onSettingsUpdate);
+      socket.on('categories-updated', onCategoriesUpdate);
 
       return () => {
         active = false;
         socket.off('products-updated', onProductsUpdate);
         socket.off('settings-updated', onSettingsUpdate);
+        socket.off('categories-updated', onCategoriesUpdate);
       };
     } catch {
       return () => {
@@ -250,64 +342,117 @@ export default function HomeScreen() {
         </View>
 
         {/* 3. CATEGORIES HORIZONTAL CAROUSEL */}
-        <View style={styles.sectionHeaderRow}>
-          <ThemedText style={styles.sectionTitle}>{t('Categories', 'ক্যাটাগরি')}</ThemedText>
-          <ThemedText style={styles.sectionCount}>
-            {t(`(${PRODUCT_CATEGORIES.length - 1} categories)`, `(${PRODUCT_CATEGORIES.length - 1} টি বিভাগ)`)}
-          </ThemedText>
-        </View>
+        {(isInitialLoading || categories.length > 0) && (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText style={styles.sectionTitle}>{t('Categories', 'ক্যাটাগরি')}</ThemedText>
+              <ThemedText style={styles.sectionCount}>
+                {isInitialLoading
+                  ? t('(Loading...)', '(লোড হচ্ছে...)')
+                  : t(`(${categories.length} categories)`, `(${categories.length} টি বিভাগ)`)}
+              </ThemedText>
+            </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesScroll}
-        >
-          {PRODUCT_CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            return (
-              <Pressable
-                key={cat.id}
-                style={[
-                  styles.categoryPill,
-                  isSelected && styles.categoryPillActive,
-                ]}
-                onPress={() => {
-                  if (Platform.OS !== 'web') {
-                    try {
-                      Haptics.selectionAsync();
-                    } catch {}
-                  }
-                  setSelectedCategory(cat.id);
-                }}
-              >
-                <Ionicons
-                  name={cat.icon}
-                  size={16}
-                  color={isSelected ? '#FFFFFF' : '#0284C7'}
-                />
-                <ThemedText
-                  numberOfLines={1}
-                  style={[
-                    styles.categoryPillText,
-                    isSelected && styles.categoryPillTextActive,
-                  ]}
-                >
-                  {isBangla ? cat.bangla : cat.title}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesScroll}
+            >
+              {isInitialLoading ? (
+                [1, 2, 3, 4, 5].map((n) => (
+                  <SkeletonItem
+                    key={n}
+                    style={{
+                      width: 80,
+                      height: 34,
+                      borderRadius: 20,
+                      marginRight: 8,
+                    }}
+                  />
+                ))
+              ) : (
+                <>
+                  {/* All Items Pill */}
+                  <Pressable
+                    key="all"
+                    style={[
+                      styles.categoryPill,
+                      selectedCategory === 'all' && styles.categoryPillActive,
+                    ]}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') {
+                        try {
+                          Haptics.selectionAsync();
+                        } catch {}
+                      }
+                      setSelectedCategory('all');
+                    }}
+                  >
+                    <ThemedText
+                      numberOfLines={1}
+                      style={[
+                        styles.categoryPillText,
+                        selectedCategory === 'all' && styles.categoryPillTextActive,
+                      ]}
+                    >
+                      {isBangla ? 'সকল পণ্য' : 'All Items'}
+                    </ThemedText>
+                  </Pressable>
+
+                  {/* Dynamic Categories (Text Only, No Icons) */}
+                  {categories.map((cat) => {
+                    const isSelected = selectedCategory === cat.id;
+                    return (
+                      <Pressable
+                        key={cat.id}
+                        style={[
+                          styles.categoryPill,
+                          isSelected && styles.categoryPillActive,
+                        ]}
+                        onPress={() => {
+                          if (Platform.OS !== 'web') {
+                            try {
+                              Haptics.selectionAsync();
+                            } catch {}
+                          }
+                          setSelectedCategory(cat.id);
+                        }}
+                      >
+                        <ThemedText
+                          numberOfLines={1}
+                          style={[
+                            styles.categoryPillText,
+                            isSelected && styles.categoryPillTextActive,
+                          ]}
+                        >
+                          {cat.title || cat.bangla}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  })}
+                </>
+              )}
+            </ScrollView>
+          </>
+        )}
 
         {/* 6. PRODUCTS GRID FEED */}
         <View style={styles.sectionHeaderRow}>
           <ThemedText style={styles.sectionTitle}>{t('Products', 'পণ্যসমূহ')}</ThemedText>
           <ThemedText style={styles.sectionCount}>
-            {t(`(${filteredProducts.length} items found)`, `(${filteredProducts.length} টি পণ্য পাওয়া গেছে)`)}
+            {isInitialLoading
+              ? t('(Loading...)', '(লোড হচ্ছে...)')
+              : t(`(${filteredProducts.length} items found)`, `(${filteredProducts.length} টি পণ্য পাওয়া গেছে)`)}
           </ThemedText>
         </View>
 
-        {filteredProducts.length === 0 ? (
+        {isInitialLoading ? (
+          <View style={styles.productGrid}>
+            {[1, 2, 3, 4, 5, 6].map((k) => (
+              <ProductCardSkeleton key={k} cardWidth={cardWidth} />
+            ))}
+          </View>
+        ) : filteredProducts.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="search-outline" size={48} color="#94A3B8" />
             <ThemedText style={styles.emptyTitle}>{t('No products found', 'কোনো পণ্য পাওয়া যায়নি')}</ThemedText>
@@ -318,16 +463,13 @@ export default function HomeScreen() {
         ) : (
           <View style={styles.productGrid}>
             {filteredProducts.map((item) => {
-              const bookingAmt = item.bookingAmount || defaultBookingAmount;
-              const hasDiscount = item.originalPrice && item.originalPrice > item.price;
-
               return (
                 <Pressable
                   key={item.id}
                   style={[styles.productCard, { width: cardWidth }]}
                   onPress={() => handleSelectProduct(item)}
                 >
-                  {/* Thumbnail Image */}
+                  {/* Thumbnail Image (Lomba / Portrait Aspect Ratio) */}
                   <View style={styles.cardImageWrapper}>
                     <Image
                       source={{
@@ -339,31 +481,6 @@ export default function HomeScreen() {
                       style={styles.cardImage}
                       resizeMode="cover"
                     />
-
-                    {/* Condition Badge */}
-                    <View style={styles.cardConditionBadge}>
-                      <ThemedText style={styles.cardConditionText} numberOfLines={1}>
-                        {isBangla
-                          ? item.conditionLabel || 'ভালো'
-                          : item.condition === 'used-like-new'
-                          ? 'Like New'
-                          : item.condition === 'used-good'
-                          ? 'Good Condition'
-                          : 'Fair'}
-                      </ThemedText>
-                    </View>
-
-                    {item.badge ? (
-                      <View style={styles.cardHotBadge}>
-                        <ThemedText
-                          style={styles.cardHotText}
-                          numberOfLines={1}
-                          textBreakStrategy="simple"
-                        >
-                          {item.badge}
-                        </ThemedText>
-                      </View>
-                    ) : null}
                   </View>
 
                   {/* Product Details */}
@@ -372,35 +489,23 @@ export default function HomeScreen() {
                       {item.title}
                     </ThemedText>
 
-                    <View style={styles.cardLocationRow}>
-                      <Ionicons name="location-outline" size={12} color="#64748B" />
-                      <ThemedText style={styles.cardLocationText} numberOfLines={1}>
-                        {appSettings.shopLocation || item.location || (isBangla ? 'মিরপুর ১০, ঢাকা' : 'Mirpur 10, Dhaka')}
-                      </ThemedText>
-                    </View>
-
                     <View style={styles.cardPriceRow}>
                       <ThemedText style={styles.cardPrice}>
                         ৳ {item.price ? item.price.toLocaleString() : 0}
                       </ThemedText>
-                      {hasDiscount ? (
-                        <ThemedText style={styles.cardOriginalPrice}>
-                          ৳{item.originalPrice?.toLocaleString()}
-                        </ThemedText>
-                      ) : null}
                     </View>
 
-                    {/* Booking / Booked Tag (No price/amount shown on card) */}
+                    {/* Booking / Booked Tag */}
                     {item.status !== 'available' ? (
                       <View style={styles.bookedTag}>
                         <ThemedText style={styles.bookedTagText} numberOfLines={1}>
-                          {t('🔒 Booked', '🔒 বুক করা আছে')}
+                          🔒 বুক করা আছে
                         </ThemedText>
                       </View>
                     ) : (
                       <View style={styles.bookingTag}>
                         <ThemedText style={styles.bookingTagText} numberOfLines={1}>
-                          {t('🔖 Book Now', '🔖 বুকিং করুন')}
+                          🔖 বুকিং করুন
                         </ThemedText>
                       </View>
                     )}
@@ -442,23 +547,23 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   brandLogo: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   brandLogoImage: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   brandName: {
     fontSize: 18,
@@ -472,32 +577,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   profileAvatarBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: '#0284C7',
     position: 'relative',
     backgroundColor: '#E0F2FE',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   profileAvatarImg: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
   profileOnlineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#10B981',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
     position: 'absolute',
     bottom: -1,
@@ -602,13 +707,13 @@ const styles = StyleSheet.create({
   categoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 24,
+    paddingVertical: 5.5,
+    borderRadius: 20,
     flexShrink: 0,
     alignSelf: 'center',
     shadowColor: '#000',
@@ -622,7 +727,7 @@ const styles = StyleSheet.create({
     borderColor: '#0284C7',
   },
   categoryPillText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#334155',
     flexShrink: 0,
@@ -633,13 +738,13 @@ const styles = StyleSheet.create({
   },
   locationsScroll: {
     gap: 8,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   locationPill: {
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 3.5,
+    borderRadius: 14,
   },
   locationPillActive: {
     backgroundColor: '#0F172A',
@@ -671,9 +776,10 @@ const styles = StyleSheet.create({
   },
   cardImageWrapper: {
     width: '100%',
-    height: 125,
-    backgroundColor: '#E2E8F0',
+    aspectRatio: 0.85,
+    backgroundColor: '#F1F5F9',
     position: 'relative',
+    overflow: 'hidden',
   },
   cardImage: {
     width: '100%',
@@ -719,14 +825,13 @@ const styles = StyleSheet.create({
   },
   cardDetails: {
     padding: 10,
-    gap: 4,
+    gap: 3,
   },
   cardTitle: {
     fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
     lineHeight: 18,
-    minHeight: 36,
   },
   cardLocationRow: {
     flexDirection: 'row',
@@ -742,32 +847,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 6,
-    marginTop: 4,
+    marginTop: 1,
   },
   cardPrice: {
     fontSize: 15,
     fontWeight: '900',
     color: '#16A34A',
   },
-  cardOriginalPrice: {
-    fontSize: 10,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
   bookingTag: {
     backgroundColor: '#FEF3C7',
     borderWidth: 1,
     borderColor: '#FDE68A',
-    paddingVertical: 5,
+    paddingVertical: 2,
     paddingHorizontal: 6,
-    borderRadius: 6,
-    marginTop: 4,
+    borderRadius: 4,
+    marginTop: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
   bookingTagText: {
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 9.5,
+    lineHeight: 13,
     fontWeight: '700',
     color: '#B45309',
     includeFontPadding: false,
@@ -776,16 +876,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
     borderWidth: 1,
     borderColor: '#FECACA',
-    paddingVertical: 5,
+    paddingVertical: 2,
     paddingHorizontal: 6,
-    borderRadius: 6,
-    marginTop: 4,
+    borderRadius: 4,
+    marginTop: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
   bookedTagText: {
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 9.5,
+    lineHeight: 13,
     fontWeight: '700',
     color: '#DC2626',
     includeFontPadding: false,

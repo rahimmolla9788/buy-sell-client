@@ -492,30 +492,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
   },
-  headerSubtitleText: {
-    fontSize: 11,
-    color: '#6B7280',
-    maxWidth: 220,
-    marginTop: 2,
-  },
   whiteSafeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-  },
-  noticeBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  noticeBarText: {
-    fontSize: 12,
-    color: '#334155',
-    fontWeight: '600',
-    lineHeight: 16,
   },
   gatewayWrapper: {
     flex: 1,

@@ -1,26 +1,6 @@
-import { ProductCategory, SecondHandProduct } from '@/types/product';
-import { Ionicons } from '@expo/vector-icons';
+import { SecondHandProduct } from '@/types/product';
 
-export interface CategoryItem {
-  id: ProductCategory;
-  title: string;
-  bangla: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}
-
-export const PRODUCT_CATEGORIES: CategoryItem[] = [
-  { id: 'all', title: 'All Items', bangla: 'সকল পণ্য', icon: 'apps-outline' },
-  { id: 'mobiles', title: 'Mobiles', bangla: 'মোবাইল', icon: 'phone-portrait-outline' },
-  { id: 'computers', title: 'Computers', bangla: 'ল্যাপটপ/পিসি', icon: 'laptop-outline' },
-  { id: 'bikes', title: 'Bikes & Cars', bangla: 'বাইক/গাড়ি', icon: 'bicycle-outline' },
-  { id: 'electronics', title: 'Electronics', bangla: 'টিভি/ইলেকট্রনিক্স', icon: 'tv-outline' },
-  { id: 'appliances', title: 'Appliances', bangla: 'গৃহস্থালি', icon: 'snow-outline' },
-  { id: 'cameras', title: 'Cameras', bangla: 'ক্যামেরা', icon: 'camera-outline' },
-  { id: 'furniture', title: 'Furniture', bangla: 'আসবাবপত্র', icon: 'bed-outline' },
-  { id: 'fashion', title: 'Fashion', bangla: 'ঘড়ি ও ফ্যাশন', icon: 'watch-outline' },
-];
-
-export const DEFAULT_BOOKING_AMOUNT = 50; // ডিফল্ট ৫০ টাকা (শপ পিকআপ বুকিং ফি)
+export const DEFAULT_BOOKING_AMOUNT = 50; // ডিফল্ট ৫০ টাকা (টোকেন বুকিং ফি)
 export const DEFAULT_DELIVERY_INSIDE_DHAKA = 70; // ডিফল্ট ৭০ টাকা (ঢাকার ভেতরে ডেলিভারি চার্জ)
 export const DEFAULT_DELIVERY_OUTSIDE_DHAKA = 120; // ডিফল্ট ১২০ টাকা (ঢাকার বাইরে ডেলিভারি চার্জ)
 export const OFFICIAL_SHOP_LOCATION = 'মিরপুর ১০, ঢাকা';
@@ -33,7 +13,6 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     category: 'mobiles',
     categoryName: 'মোবাইল ও গ্যাজেট',
     price: 52000,
-    originalPrice: 78000,
     condition: 'used-like-new',
     conditionLabel: 'নতুনের মতো (Like New)',
     location: OFFICIAL_SHOP_LOCATION,
@@ -50,7 +29,8 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     bookingAmount: 50,
     status: 'booked',
     featured: true,
-    badge: 'হট ডিল',
+    badges: ['🔥 Hot Deal', '✅ Official', '✨ Like New'],
+    badge: '🔥 Hot Deal, ✅ Official, ✨ Like New',
     specifications: [
       { label: 'র‌্যাম ও স্টোরেজ', value: '6GB RAM, 128GB Storage' },
       { label: 'ব্যাটারি হেলথ', value: '88% Authentic' },
@@ -64,7 +44,6 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     category: 'mobiles',
     categoryName: 'মোবাইল ও গ্যাজেট',
     price: 48500,
-    originalPrice: 72000,
     condition: 'used-good',
     conditionLabel: 'ভালো কন্ডিশন (Good)',
     location: OFFICIAL_SHOP_LOCATION,
@@ -80,7 +59,8 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     bookingAmount: 50,
     status: 'booked',
     featured: true,
-    badge: 'জনপ্রিয়',
+    badges: ['⭐ Popular', '⚡ Urgent Sale'],
+    badge: '⭐ Popular, ⚡ Urgent Sale',
     specifications: [
       { label: 'র‌্যাম ও রম', value: '12GB / 256GB' },
       { label: 'প্রসেসর', value: 'Snapdragon 8 Gen 1' },
@@ -93,7 +73,6 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     category: 'computers',
     categoryName: 'ল্যাপটপ ও পিসি',
     price: 64000,
-    originalPrice: 89000,
     condition: 'used-like-new',
     conditionLabel: 'নতুনের মতো (Like New)',
     location: OFFICIAL_SHOP_LOCATION,
@@ -109,7 +88,8 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     bookingAmount: 50,
     status: 'booked',
     featured: true,
-    badge: 'ভেরিফাইড',
+    badges: ['✅ Official', '✨ Like New'],
+    badge: '✅ Official, ✨ Like New',
     specifications: [
       { label: 'চিপসেট', value: 'Apple M1 Chip (8-Core CPU)' },
       { label: 'র‌্যাম / স্টোরেজ', value: '8GB Unified / 256GB SSD' },
@@ -122,7 +102,6 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     category: 'bikes',
     categoryName: 'বাইক ও গাড়ি',
     price: 142000,
-    originalPrice: 215000,
     condition: 'used-good',
     conditionLabel: 'ভালো কন্ডিশন (Good)',
     location: OFFICIAL_SHOP_LOCATION,
@@ -138,7 +117,8 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     bookingAmount: 50,
     status: 'booked',
     featured: false,
-    badge: 'জরুরি বিক্রয়',
+    badges: ['🔥 Hot Deal', '⭐ Popular'],
+    badge: '🔥 Hot Deal, ⭐ Popular',
     specifications: [
       { label: 'ইঞ্জিন ক্ষমতা', value: '149cc Fuel Injection' },
       { label: 'রানিং', value: '18,200 KM' },
@@ -151,7 +131,6 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     category: 'electronics',
     categoryName: 'ইলেকট্রনিক্স ও টিভি',
     price: 28000,
-    originalPrice: 42000,
     condition: 'used-like-new',
     conditionLabel: 'নতুনের মতো (Like New)',
     location: OFFICIAL_SHOP_LOCATION,
@@ -167,7 +146,8 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     bookingAmount: 50,
     status: 'booked',
     featured: false,
-    badge: 'হট ডিল',
+    badges: ['🔥 Hot Deal', '✨ Like New'],
+    badge: '🔥 Hot Deal, ✨ Like New',
     specifications: [
       { label: 'স্ক্রিন সাইজ', value: '43 Inch 4K UHD' },
       { label: 'সাউন্ড', value: 'Dolby Audio 20W' },
@@ -180,7 +160,6 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     category: 'cameras',
     categoryName: 'ক্যামেরা ও অডিও',
     price: 38000,
-    originalPrice: 55000,
     condition: 'used-like-new',
     conditionLabel: 'নতুনের মতো (Like New)',
     location: OFFICIAL_SHOP_LOCATION,
@@ -196,7 +175,8 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     bookingAmount: 50,
     status: 'booked',
     featured: false,
-    badge: 'প্রস্তাবিত',
+    badges: ['⚡ Urgent Sale', '🏷️ Special Offer'],
+    badge: '⚡ Urgent Sale, 🏷️ Special Offer',
     specifications: [
       { label: 'সেন্সর', value: '24.1MP APS-C CMOS' },
       { label: 'ভিডিও', value: '4K UHD, Dual Pixel AF' },
@@ -209,7 +189,6 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     category: 'appliances',
     categoryName: 'গৃহস্থালি সামগ্রী',
     price: 29500,
-    originalPrice: 46000,
     condition: 'used-good',
     conditionLabel: 'ভালো কন্ডিশন (Good)',
     location: OFFICIAL_SHOP_LOCATION,
@@ -225,7 +204,8 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     bookingAmount: 50,
     status: 'booked',
     featured: false,
-    badge: 'বাজেট ফ্রেন্ডলি',
+    badges: ['🛡️ 7-Day Warranty', '⭐ Popular'],
+    badge: '🛡️ 7-Day Warranty, ⭐ Popular',
     specifications: [
       { label: 'ক্যাপাসিটি', value: '1.5 Ton (18,000 BTU)' },
       { label: 'কম্প্রেসার', value: 'Dual Inverter Rotary' },
@@ -238,7 +218,6 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     category: 'fashion',
     categoryName: 'ঘড়ি ও ফ্যাশন',
     price: 21000,
-    originalPrice: 35000,
     condition: 'used-like-new',
     conditionLabel: 'নতুনের মতো (Like New)',
     location: OFFICIAL_SHOP_LOCATION,
@@ -254,7 +233,8 @@ export const DEFAULT_PRODUCTS: SecondHandProduct[] = [
     bookingAmount: 50,
     status: 'booked',
     featured: false,
-    badge: 'হট ডিল',
+    badges: ['🔥 Hot Deal', '✅ Official'],
+    badge: '🔥 Hot Deal, ✅ Official',
     specifications: [
       { label: 'ডিসপ্লে সাইজ', value: '45mm OLED Retina Always-On' },
       { label: 'ফিচার', value: 'ECG, Blood Oxygen, Fall Detection' },

@@ -12,6 +12,7 @@ import {
   Keyboard,
   Image,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -82,6 +83,42 @@ export const PAYMENT_METHODS: PaymentMethodItem[] = [
   },
 ];
 
+// Responsive Skeleton Item for Product Details Screen
+function DetailsSkeletonItem({ style }: { style: any }) {
+  const pulseAnim = useRef(new Animated.Value(0.35)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.85,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.35,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulseAnim]);
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: pulseAnim,
+          backgroundColor: '#E2E8F0',
+        },
+      ]}
+    />
+  );
+}
+
 export default function PaymentDetailsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -94,10 +131,8 @@ export default function PaymentDetailsScreen() {
 
   const activeId = params.productId || params.offerId;
 
-  // Product and Settings State
-  const [product, setProduct] = useState<SecondHandProduct | undefined>(() => {
-    return DEFAULT_PRODUCTS.find((p) => p.id === activeId) || DEFAULT_PRODUCTS[0];
-  });
+  // Product and Settings State (Starts empty, no dummy data flash)
+  const [product, setProduct] = useState<SecondHandProduct | undefined>(undefined);
   const [appSettings, setAppSettings] = useState<AppSettings>({
     key: 'global_settings',
     bookingPaymentAmount: DEFAULT_BOOKING_AMOUNT,
@@ -125,9 +160,10 @@ export default function PaymentDetailsScreen() {
   const [deliveryAddress, setDeliveryAddress] = useState('মিরপুর, ঢাকা');
   const [pickupNote, setPickupNote] = useState('');
 
-  // Multi-Image Slider State
+  // Multi-Image Slider State (Lomba / Portrait Aspect Ratio)
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [sliderWidth, setSliderWidth] = useState(width - 32);
+  const sliderHeight = useMemo(() => Math.round(sliderWidth / 0.85), [sliderWidth]);
   const imageSliderRef = useRef<ScrollView>(null);
 
   const productImages = useMemo(() => {
@@ -139,8 +175,15 @@ export default function PaymentDetailsScreen() {
         }
       });
     }
-    if (product?.thumbnail && product.thumbnail.trim() && !list.includes(product.thumbnail.trim())) {
-      list.unshift(product.thumbnail.trim());
+    if (product?.thumbnail && product.thumbnail.trim()) {
+      const thumb = product.thumbnail.trim();
+      const idx = list.indexOf(thumb);
+      if (idx > 0) {
+        list.splice(idx, 1);
+        list.unshift(thumb);
+      } else if (idx === -1) {
+        list.unshift(thumb);
+      }
     }
     if (list.length === 0) {
       list.push('https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=800&q=80');
@@ -223,9 +266,13 @@ export default function PaymentDetailsScreen() {
   const currentDeliveryFee = deliveryArea === 'inside_dhaka' ? deliveryFeeInsideDhaka : deliveryFeeOutsideDhaka;
 
   const productPrice = product?.price || 0;
-  const originalPrice = product?.originalPrice || null;
-  const savings = originalPrice && originalPrice > productPrice ? originalPrice - productPrice : 0;
   const isProductBooked = !product || product.status !== 'available';
+
+  const productBadges = useMemo(() => {
+    if (Array.isArray(product?.badges) && product.badges.length > 0) return product.badges;
+    if (product?.badge) return product.badge.split(',').map((s) => s.trim()).filter(Boolean);
+    return [];
+  }, [product?.badges, product?.badge]);
 
   // Payable amount & Remaining amount calculation
   const { payableAmount, remainingAmount, paymentTypeForBackend } = useMemo(() => {
@@ -315,11 +362,64 @@ export default function PaymentDetailsScreen() {
 
   if (isLoading && !product) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#0284c7" />
-        <ThemedText style={{ marginTop: 12, color: '#64748b' }}>
-          {t('Loading product details...', 'পণ্যের তথ্য লোড হচ্ছে...')}
-        </ThemedText>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.topBar}>
+          <Pressable
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color="#0f172a" />
+          </Pressable>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <ThemedText style={styles.headerTitle} numberOfLines={1}>
+              {t('Product Details', 'পণ্যের বিস্তারিত')}
+            </ThemedText>
+          </View>
+        </View>
+
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Main Image Slider Skeleton */}
+          <DetailsSkeletonItem
+            style={{
+              width: '100%',
+              height: sliderHeight,
+              borderRadius: 16,
+              marginBottom: 12,
+            }}
+          />
+
+          {/* Details & Price Card Skeleton */}
+          <View style={styles.sectionCard}>
+            <DetailsSkeletonItem style={{ width: '40%', height: 16, borderRadius: 4, marginBottom: 8 }} />
+            <DetailsSkeletonItem style={{ width: '80%', height: 22, borderRadius: 4, marginBottom: 12 }} />
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 14 }}>
+              <DetailsSkeletonItem style={{ width: 70, height: 20, borderRadius: 4 }} />
+              <DetailsSkeletonItem style={{ width: 80, height: 20, borderRadius: 4 }} />
+            </View>
+            <DetailsSkeletonItem style={{ width: '45%', height: 26, borderRadius: 6 }} />
+          </View>
+
+          {/* Guarantee Card Skeleton */}
+          <View style={styles.sectionCard}>
+            <DetailsSkeletonItem style={{ width: '55%', height: 18, borderRadius: 4, marginBottom: 12 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <DetailsSkeletonItem style={{ width: 44, height: 44, borderRadius: 22 }} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <DetailsSkeletonItem style={{ width: '60%', height: 16, borderRadius: 4 }} />
+                <DetailsSkeletonItem style={{ width: '40%', height: 12, borderRadius: 4 }} />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <DetailsSkeletonItem style={{ width: 110, height: 20, borderRadius: 4 }} />
+              <DetailsSkeletonItem style={{ width: 100, height: 20, borderRadius: 4 }} />
+            </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -339,21 +439,21 @@ export default function PaymentDetailsScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#0f172a" />
           </Pressable>
-          <View style={{ flex: 1, marginLeft: 8 }}>
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <ThemedText style={styles.headerTitle} numberOfLines={1}>
               {isProductBooked
                 ? t('Product Details', 'পণ্যের বিস্তারিত')
                 : t('Product Details & Payment', 'পণ্যের বিস্তারিত ও পেমেন্ট')}
             </ThemedText>
-            <ThemedText style={[styles.headerSubtitle, isProductBooked && { color: '#DC2626' }]}>
-              {isProductBooked
-                ? t('🔒 Booked', '🔒 পণ্যটি বুক করা আছে')
-                : deliveryOption === 'home_delivery'
-                ? t(`Delivery Charge (৳${payableAmount})`, `ডেলিভারি চার্জ (৳${payableAmount})`)
-                : deliveryOption === 'store_pickup'
-                ? t(`Token Booking (৳${payableAmount})`, `টোকেন বুকিং (৳${payableAmount})`)
-                : t(`Full Payment (৳${payableAmount.toLocaleString()})`, `ফুল পেমেন্ট (৳${payableAmount.toLocaleString()})`)}
-            </ThemedText>
+            {!isProductBooked ? (
+              <ThemedText style={styles.headerSubtitle}>
+                {deliveryOption === 'home_delivery'
+                  ? t(`Delivery Charge (৳${payableAmount})`, `ডেলিভারি চার্জ (৳${payableAmount})`)
+                  : deliveryOption === 'store_pickup'
+                  ? t(`Token Booking (৳${payableAmount})`, `টোকেন বুকিং (৳${payableAmount})`)
+                  : t(`Full Payment (৳${payableAmount.toLocaleString()})`, `ফুল পেমেন্ট (৳${payableAmount.toLocaleString()})`)}
+              </ThemedText>
+            ) : null}
           </View>
         </View>
 
@@ -363,9 +463,9 @@ export default function PaymentDetailsScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* 1. Product Multi-Image Slider & Badges */}
+          {/* 1. Product Multi-Image Slider (Lomba / Portrait Aspect Ratio) */}
           <View
-            style={styles.imageCard}
+            style={[styles.imageCard, { height: sliderHeight }]}
             onLayout={(e) => {
               const w = e.nativeEvent.layout.width;
               if (w > 0 && Math.abs(w - sliderWidth) > 1) {
@@ -386,32 +486,17 @@ export default function PaymentDetailsScreen() {
                 const clamped = Math.max(0, Math.min(idx, productImages.length - 1));
                 setActiveImageIndex(clamped);
               }}
-              style={{ width: sliderWidth, height: 240 }}
+              style={{ width: sliderWidth, height: sliderHeight }}
             >
               {productImages.map((imgUri, idx) => (
                 <Image
                   key={`${imgUri}-${idx}`}
                   source={{ uri: imgUri }}
-                  style={{ width: sliderWidth, height: 240 }}
+                  style={{ width: sliderWidth, height: sliderHeight }}
                   resizeMode="cover"
                 />
               ))}
             </ScrollView>
-
-            <View style={styles.imageOverlayBadges} pointerEvents="none">
-              <View style={styles.conditionTag}>
-                <ThemedText style={styles.conditionText} numberOfLines={1}>
-                  ✨ {product?.conditionLabel || 'নতুনের মতো'}
-                </ThemedText>
-              </View>
-              {product?.badge ? (
-                <View style={styles.hotDealTag}>
-                  <ThemedText style={styles.hotDealText} numberOfLines={1}>
-                    🔥 {product.badge}
-                  </ThemedText>
-                </View>
-              ) : null}
-            </View>
 
             {/* Pagination Dots & Image Counter */}
             {productImages.length > 1 ? (
@@ -474,12 +559,21 @@ export default function PaymentDetailsScreen() {
             <View style={styles.categoryRow}>
               <View style={styles.categoryBadge}>
                 <ThemedText style={styles.categoryBadgeText} numberOfLines={1}>
-                  {isBangla
-                    ? product?.categoryName || product?.category || 'সাধারণ'
-                    : (product?.category || 'General').toUpperCase()}
+                  {product?.categoryName || product?.category || ''}
                 </ThemedText>
               </View>
             </View>
+
+            {/* Product Multi Badges Row */}
+            {productBadges.length > 0 && (
+              <View style={styles.detailBadgeRow}>
+                {productBadges.map((bg, idx) => (
+                  <View key={idx} style={styles.detailBadgePill}>
+                    <ThemedText style={styles.detailBadgeText} numberOfLines={1}>{bg}</ThemedText>
+                  </View>
+                ))}
+              </View>
+            )}
 
             <View style={styles.priceContainer}>
               <View>
@@ -492,32 +586,12 @@ export default function PaymentDetailsScreen() {
                 <View style={styles.bookedStatusPill}>
                   <Ionicons name="lock-closed" size={13} color="#DC2626" />
                   <ThemedText style={styles.bookedStatusPillText} numberOfLines={1}>
-                    {t('Booked', 'বুক করা আছে')}
+                    বুক করা আছে
                   </ThemedText>
                 </View>
               ) : null}
             </View>
           </View>
-
-          {/* Booked Notice Banner when Product is Booked */}
-          {isProductBooked ? (
-            <View style={styles.bookedNoticeCard}>
-              <View style={styles.bookedNoticeIconWrap}>
-                <Ionicons name="lock-closed" size={22} color="#DC2626" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.bookedNoticeTitle}>
-                  {t('This product is already booked', 'পণ্যটি বুক করা আছে')}
-                </ThemedText>
-                <ThemedText style={styles.bookedNoticeDesc}>
-                  {t(
-                    'This product is currently booked. You cannot book or proceed to payment for this item right now.',
-                    'এই পণ্যটি বর্তমানে বুক করা অবস্থায় আছে। তাই এই পণ্যটি এখন বুকিং বা পেমেন্ট করা যাবে না।'
-                  )}
-                </ThemedText>
-              </View>
-            </View>
-          ) : null}
 
           {/* 3-5. Checkout & Payment Sections (Only shown when product is available) */}
           {!isProductBooked ? (
@@ -945,46 +1019,56 @@ export default function PaymentDetailsScreen() {
             </View>
 
             <View style={styles.sellerRow}>
-              <View style={[styles.sellerAvatar, { backgroundColor: '#FFFFFF', overflow: 'hidden' }]}>
-                <Image
-                  source={require('@/assets/images/icon.png')}
-                  style={{ width: 44, height: 44, borderRadius: 22 }}
-                  resizeMode="cover"
-                />
+              {/* Top Row: Logo Icon on Left, Official Badge on Right */}
+              <View style={styles.sellerTopRow}>
+                <View style={styles.sellerAvatar}>
+                  <Image
+                    source={require('@/assets/images/icon.png')}
+                    style={{ width: 44, height: 44, borderRadius: 22 }}
+                    resizeMode="cover"
+                  />
+                </View>
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="shield-checkmark" size={14} color="#22c55e" />
+                  <ThemedText style={styles.verifiedText}>{t('Official', 'অফিসিয়াল')}</ThemedText>
+                </View>
               </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <ThemedText style={styles.sellerName}>
-                  {t('Buy & Sell BD Official Store', 'Buy & Sell BD অফিসিয়াল শপ')}
-                </ThemedText>
-                <ThemedText style={styles.sellerPhone}>
-                  {t('100% Quality Tested & Verified', '১০০% কোয়ালিটি টেস্টেড ও ভেরিফাইড')}
-                </ThemedText>
-              </View>
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="shield-checkmark" size={14} color="#22c55e" />
-                <ThemedText style={styles.verifiedText}>{t('Official', 'অফিসিয়াল')}</ThemedText>
-              </View>
+
+              {/* Store Name Below Logo */}
+              <ThemedText style={styles.sellerName}>
+                {t('Buy & Sell BD Official Store', 'Buy & Sell BD অফিসিয়াল শপ')}
+              </ThemedText>
+
+              {/* Quality & Verification info under Name */}
+              <ThemedText style={styles.sellerPhone}>
+                {t('100% Quality Tested & Verified', '১০০% কোয়ালিটি টেস্টেড ও ভেরিফাইড')}
+              </ThemedText>
             </View>
 
-            {/* Single Vendor Guarantee Highlights */}
-            <View style={styles.assuranceRow}>
-              <View style={styles.assuranceBadge}>
-                <Ionicons name="shield-checkmark-outline" size={12} color="#15803D" />
-                <ThemedText style={styles.assuranceText}>
-                  {t('7-Day Replacement', '৭ দিনের রিপ্লেসমেন্ট')}
-                </ThemedText>
+            {/* Single Vendor Guarantee Highlights (Row 1 has 2 badges, Row 2 has 1 badge) */}
+            <View style={styles.assuranceContainer}>
+              <View style={styles.assuranceGridRow}>
+                <View style={styles.assuranceBadgeFlex}>
+                  <Ionicons name="shield-checkmark-outline" size={13} color="#15803D" />
+                  <ThemedText style={styles.assuranceText} numberOfLines={1}>
+                    {t('7-Day Replacement', '৭ দিনের রিপ্লেসমেন্ট')}
+                  </ThemedText>
+                </View>
+                <View style={styles.assuranceBadgeFlex}>
+                  <Ionicons name="checkmark-done-circle-outline" size={13} color="#15803D" />
+                  <ThemedText style={styles.assuranceText} numberOfLines={1}>
+                    {t('100% Authentic', '১০০% অরিজিনাল')}
+                  </ThemedText>
+                </View>
               </View>
-              <View style={styles.assuranceBadge}>
-                <Ionicons name="cube-outline" size={12} color="#15803D" />
-                <ThemedText style={styles.assuranceText}>
-                  {t('Inspect on Delivery', 'ডেলিভারিতে দেখে নেওয়ার সুযোগ')}
-                </ThemedText>
-              </View>
-              <View style={styles.assuranceBadge}>
-                <Ionicons name="checkmark-done-circle-outline" size={12} color="#15803D" />
-                <ThemedText style={styles.assuranceText}>
-                  {t('100% Authentic', '১০০% অরিজিনাল')}
-                </ThemedText>
+
+              <View style={[styles.assuranceGridRow, { marginTop: 6 }]}>
+                <View style={styles.assuranceBadgeFlex}>
+                  <Ionicons name="cube-outline" size={13} color="#15803D" />
+                  <ThemedText style={styles.assuranceText} numberOfLines={1}>
+                    {t('Inspect on Delivery', 'ডেলিভারিতে দেখে নেওয়ার সুযোগ')}
+                  </ThemedText>
+                </View>
               </View>
             </View>
 
@@ -1093,7 +1177,7 @@ export default function PaymentDetailsScreen() {
             <View style={styles.bookedBottomBanner}>
               <Ionicons name="lock-closed" size={18} color="#DC2626" />
               <ThemedText style={styles.bookedBottomBannerText} numberOfLines={1}>
-                {t('This product is already booked', 'পণ্যটি বুক করা আছে')}
+                এই পণ্যটি ইতিমধ্যে বুক করা আছে
               </ThemedText>
             </View>
           ) : (
@@ -1152,9 +1236,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E8F0',
   },
   backBtn: {
-    padding: 6,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 16,
@@ -1176,7 +1263,6 @@ const styles = StyleSheet.create({
   },
   imageCard: {
     width: '100%',
-    height: 240,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#E2E8F0',
@@ -1276,9 +1362,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   thumbItem: {
-    width: 56,
-    height: 56,
-    borderRadius: 10,
+    width: 50,
+    height: 62,
+    borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: '#E2E8F0',
@@ -1312,16 +1398,38 @@ const styles = StyleSheet.create({
   },
   categoryBadge: {
     backgroundColor: '#F0F9FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
     alignSelf: 'flex-start',
   },
   categoryBadgeText: {
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 9.5,
+    lineHeight: 12,
     color: '#0284C7',
     fontWeight: '700',
+    includeFontPadding: false,
+  },
+  detailBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 6,
+  },
+  detailBadgePill: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    alignSelf: 'flex-start',
+  },
+  detailBadgeText: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '700',
+    color: '#0284C7',
     includeFontPadding: false,
   },
   priceContainer: {
@@ -1424,14 +1532,14 @@ const styles = StyleSheet.create({
   },
   optionTagBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
     borderRadius: 4,
-    marginTop: 4,
+    marginTop: 3,
   },
   optionTagText: {
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 9.5,
+    lineHeight: 12,
     fontWeight: '700',
     includeFontPadding: false,
   },
@@ -1626,69 +1734,84 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sellerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#F8FAFC',
-    padding: 12,
+    padding: 14,
     borderRadius: 12,
     marginTop: 8,
+  },
+  sellerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
   },
   sellerAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#0284C7',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   sellerName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
   },
   sellerPhone: {
     fontSize: 12,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 3,
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    alignSelf: 'center',
   },
   verifiedText: {
-    fontSize: 11,
+    fontSize: 9.5,
+    lineHeight: 12,
     fontWeight: '700',
     color: '#16A34A',
+    includeFontPadding: false,
   },
-  assuranceRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
+  assuranceContainer: {
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+    gap: 6,
   },
-  assuranceBadge: {
+  assuranceGridRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  assuranceBadgeFlex: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3.5,
     backgroundColor: '#F0FDF4',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: '#DCFCE7',
+    alignSelf: 'flex-start',
   },
   assuranceText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 9.5,
+    lineHeight: 12,
+    fontWeight: '700',
     color: '#15803D',
+    includeFontPadding: false,
   },
   descriptionBox: {
     marginTop: 12,
@@ -1832,54 +1955,22 @@ const styles = StyleSheet.create({
   bookedStatusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: '#FEE2E2',
     borderWidth: 1,
     borderColor: '#FECACA',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
     alignSelf: 'center',
   },
   bookedStatusPillText: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: '700',
     color: '#DC2626',
     includeFontPadding: false,
     flexShrink: 0,
-  },
-  bookedNoticeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1.5,
-    borderColor: '#FECACA',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
-  },
-  bookedNoticeIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bookedNoticeTitle: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '700',
-    color: '#991B1B',
-    includeFontPadding: false,
-  },
-  bookedNoticeDesc: {
-    fontSize: 12.5,
-    lineHeight: 18,
-    color: '#B91C1C',
-    marginTop: 3,
   },
   bookedBottomBanner: {
     flex: 1,

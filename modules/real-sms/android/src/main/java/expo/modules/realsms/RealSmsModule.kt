@@ -92,7 +92,7 @@ class RealSmsModule : Module() {
         Function("getSyncConfig") {
             val prefs = context.getSharedPreferences("RealSmsPrefs", Context.MODE_PRIVATE)
             return@Function mapOf(
-                "baseUrl" to (prefs.getString("baseUrl", "https://buy-sell-server-production.up.railway.app/api") ?: "https://buy-sell-server-production.up.railway.app/api"),
+                "baseUrl" to (prefs.getString("baseUrl", "http://127.0.0.1:5000/api") ?: "http://127.0.0.1:5000/api"),
                 "receiptNumber" to (prefs.getString("receiptNumber", "") ?: ""),
                 "apiKey" to (prefs.getString("apiKey", "") ?: "")
             )

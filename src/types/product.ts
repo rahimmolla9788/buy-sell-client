@@ -10,6 +10,15 @@ export type ProductCategory =
   | 'fashion'
   | 'others';
 
+export interface DynamicCategory {
+  id: string;
+  title: string;
+  bangla?: string;
+  icon?: string;
+  order?: number;
+  isActive?: boolean;
+}
+
 export type ProductCondition = 'used-like-new' | 'used-good' | 'used-fair';
 
 export type PaymentType = 'cod_delivery' | 'store_pickup' | 'booking' | 'online';
@@ -41,6 +50,7 @@ export interface SecondHandProduct {
   status: 'available' | 'booked' | 'sold';
   featured?: boolean;
   badge?: string;
+  badges?: string[];
   specifications?: ProductSpecification[];
   createdAt?: number;
   updatedAt?: number;

@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * 🌐 LIVE PRODUCTION BACKEND CONFIGURATION (RAILWAY)
+ * 💻 LOCAL DEVELOPMENT SERVER CONFIGURATION
  * ============================================================================
  */
-const SERVER_URL = 'https://buy-sell-server-production.up.railway.app';
+const SERVER_URL = 'http://127.0.0.1:5000';
 
 export const BACKEND_API = {
   // 🌐 Web App URL loaded inside the WebView:
