@@ -441,7 +441,7 @@ export default function PaymentScreen() {
             <PaymentGatewayView
               method={methodItem}
               amount={payableAmount}
-              paymentType={paymentType}
+              paymentType={paymentType as any}
               productId={productId}
               productTitle={productTitle}
               productPrice={productPrice}

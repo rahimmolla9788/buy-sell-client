@@ -10,6 +10,7 @@ import { AuthProvider } from '@/context/auth-context';
 import { LanguageProvider } from '@/context/language-context';
 import { SMSProvider, useSMS } from '@/context/sms-context';
 import { SMSPermissionGate } from '@/components/sms-permission-gate';
+import { AppUpdateModal } from '@/components/app-update-modal';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,20 +42,27 @@ function RootNavigator() {
   if (Platform.OS === 'android' && isPermissionChecking) {
     return (
       <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-        <StatusBar style="dark" backgroundColor="#FFFFFF" />
+        <StatusBar style="dark" />
+        <AppUpdateModal />
       </View>
     );
   }
 
   // Mandatory Permission Gate: Nobody can use the app without granting SMS permissions!
   if (Platform.OS === 'android' && !hasSmsPermission) {
-    return <SMSPermissionGate />;
+    return (
+      <>
+        <SMSPermissionGate />
+        <AppUpdateModal />
+      </>
+    );
   }
 
   return (
     <>
-      <StatusBar style="dark" backgroundColor="#FFFFFF" />
+      <StatusBar style="dark" />
       <AnimatedSplashOverlay />
+      <AppUpdateModal />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FFFFFF' } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="payment-details" options={{ animation: 'slide_from_right' }} />

@@ -164,7 +164,7 @@ export default function PaymentDetailsScreen() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [sliderWidth, setSliderWidth] = useState(width - 32);
   const sliderHeight = useMemo(() => Math.round(sliderWidth / 0.85), [sliderWidth]);
-  const imageSliderRef = useRef<ScrollView>(null);
+  const imageSliderRef = useRef<any>(null);
 
   const productImages = useMemo(() => {
     const list: string[] = [];
@@ -319,12 +319,18 @@ export default function PaymentDetailsScreen() {
     }
 
     if (!buyerPhone || buyerPhone.length < 11) {
-      Alert.alert('নম্বর দিন', 'অনুগ্রহ করে সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন।');
+      Alert.alert(
+        t('Enter Mobile Number', 'নম্বর দিন'),
+        t('Please enter a valid 11-digit mobile number.', 'অনুগ্রহ করে সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন।')
+      );
       return;
     }
 
     if (deliveryOption !== 'store_pickup' && !deliveryAddress.trim()) {
-      Alert.alert('ঠিকানা দিন', 'অনুগ্রহ করে ডেলিভারি এলাকা বা ঠিকানা দিন।');
+      Alert.alert(
+        t('Enter Address', 'ঠিকানা দিন'),
+        t('Please enter delivery area or address.', 'অনুগ্রহ করে ডেলিভারি এলাকা বা ঠিকানা দিন।')
+      );
       return;
     }
 
@@ -336,8 +342,8 @@ export default function PaymentDetailsScreen() {
 
     const finalAddress =
       deliveryOption === 'store_pickup'
-        ? `${appSettings.shopAddress || OFFICIAL_SHOP_ADDRESS} (শোরুম পিকআপ)`
-        : `${deliveryAddress.trim()} [${deliveryArea === 'inside_dhaka' ? 'ঢাকার ভেতরে' : 'ঢাকার বাইরে'}]`;
+        ? `${appSettings.shopAddress || OFFICIAL_SHOP_ADDRESS} (${t('Showroom Pickup', 'শোরুম পিকআপ')})`
+        : `${deliveryAddress.trim()} [${deliveryArea === 'inside_dhaka' ? t('Inside Dhaka', 'ঢাকার ভেতরে') : t('Outside Dhaka', 'ঢাকার বাইরে')}]`;
 
     // Navigate to payment execution
     router.push({
@@ -586,7 +592,7 @@ export default function PaymentDetailsScreen() {
                 <View style={styles.bookedStatusPill}>
                   <Ionicons name="lock-closed" size={13} color="#DC2626" />
                   <ThemedText style={styles.bookedStatusPillText} numberOfLines={1}>
-                    বুক করা আছে
+                    {t('Booked', 'বুক করা আছে')}
                   </ThemedText>
                 </View>
               ) : null}
@@ -871,7 +877,7 @@ export default function PaymentDetailsScreen() {
                   </View>
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <ThemedText style={styles.storeName}>
-                      Buy & Sell BD প্রধান শোরুম
+                      {t('Buy & Sell BD Main Showroom', 'Buy & Sell BD প্রধান শোরুম')}
                     </ThemedText>
                     <ThemedText style={styles.storeAddress}>
                       {appSettings.shopAddress || OFFICIAL_SHOP_ADDRESS}
@@ -882,12 +888,14 @@ export default function PaymentDetailsScreen() {
                 <View style={styles.storeMetaRow}>
                   <View style={styles.storeMetaItem}>
                     <Ionicons name="time-outline" size={14} color="#16A34A" />
-                    <ThemedText style={styles.storeMetaText}>সকাল ১০টা - রাত ৯টা (প্রতিদিন)</ThemedText>
+                    <ThemedText style={styles.storeMetaText}>
+                      {t('10:00 AM - 9:00 PM (Daily)', 'সকাল ১০টা - রাত ৯টা (প্রতিদিন)')}
+                    </ThemedText>
                   </View>
                   <View style={styles.storeMetaItem}>
                     <Ionicons name="call-outline" size={14} color="#0284C7" />
                     <ThemedText style={styles.storeMetaText}>
-                      হেল্পলাইন: {appSettings.supportPhone || '0197272313'}
+                      {t('Helpline:', 'হেল্পলাইন:')} {appSettings.supportPhone || '0197272313'}
                     </ThemedText>
                   </View>
                 </View>
@@ -895,7 +903,10 @@ export default function PaymentDetailsScreen() {
                 <View style={styles.pickupNoticeBox}>
                   <Ionicons name="information-circle-outline" size={16} color="#0284C7" />
                   <ThemedText style={styles.pickupNoticeText}>
-                    বুকিং সম্পন্ন হলে পণ্যটি ৩ কার্যদিবস আপনার নামে শোরুমে সংরক্ষিত থাকবে। এসে চেক করে নিয়ে যাবেন।
+                    {t(
+                      'After booking is complete, the product will be reserved in your name for 3 working days at the showroom. You can inspect and collect it.',
+                      'বুকিং সম্পন্ন হলে পণ্যটি ৩ কার্যদিবস আপনার নামে শোরুমে সংরক্ষিত থাকবে। এসে চেক করে নিয়ে যাবেন।'
+                    )}
                   </ThemedText>
                 </View>
               </View>
@@ -1177,7 +1188,7 @@ export default function PaymentDetailsScreen() {
             <View style={styles.bookedBottomBanner}>
               <Ionicons name="lock-closed" size={18} color="#DC2626" />
               <ThemedText style={styles.bookedBottomBannerText} numberOfLines={1}>
-                এই পণ্যটি ইতিমধ্যে বুক করা আছে
+                {t('This product is already booked', 'এই পণ্যটি ইতিমধ্যে বুক করা আছে')}
               </ThemedText>
             </View>
           ) : (

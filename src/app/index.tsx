@@ -499,13 +499,13 @@ export default function HomeScreen() {
                     {item.status !== 'available' ? (
                       <View style={styles.bookedTag}>
                         <ThemedText style={styles.bookedTagText} numberOfLines={1}>
-                          🔒 বুক করা আছে
+                          🔒 {t('Booked', 'বুক করা আছে')}
                         </ThemedText>
                       </View>
                     ) : (
                       <View style={styles.bookingTag}>
                         <ThemedText style={styles.bookingTagText} numberOfLines={1}>
-                          🔖 বুকিং করুন
+                          🔖 {t('Book Now', 'বুকিং করুন')}
                         </ThemedText>
                       </View>
                     )}

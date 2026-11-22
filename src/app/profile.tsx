@@ -1502,7 +1502,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   avatarUploadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
