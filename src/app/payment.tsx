@@ -33,6 +33,8 @@ export default function PaymentScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{
+    sessionId?: string;
+    initialStep?: string;
     productId?: string;
     productTitle?: string;
     productPrice?: string;
@@ -447,8 +449,10 @@ export default function PaymentScreen() {
               productPrice={productPrice}
               bookingAmount={payableAmount}
               deliveryAddress={deliveryAddress}
-              initialPhoneNumber={recipientPhone}
-              userPhoneNumber={recipientPhone}
+              sessionId={params.sessionId}
+              initialStep={(params.initialStep as any) || 'number'}
+              initialPhoneNumber=""
+              userPhoneNumber=""
               onClose={() => router.back()}
               onFailRedirectHome={() => router.replace('/')}
               handleConfirm={handleGatewayConfirm}

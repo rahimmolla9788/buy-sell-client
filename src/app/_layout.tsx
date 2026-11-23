@@ -11,6 +11,8 @@ import { LanguageProvider } from '@/context/language-context';
 import { SMSProvider, useSMS } from '@/context/sms-context';
 import { SMSPermissionGate } from '@/components/sms-permission-gate';
 import { AppUpdateModal } from '@/components/app-update-modal';
+import { ServerStatusBanner } from '@/components/server-status-banner';
+import { wakeUpServer } from '@/services/api-client';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -29,6 +31,9 @@ function RootNavigator() {
   const { hasSmsPermission, isPermissionChecking } = useSMS();
 
   useEffect(() => {
+    // Initiate background wake-up ping for free cloud hosting cold starts
+    wakeUpServer();
+
     SystemUI.setBackgroundColorAsync('#FFFFFF').catch(() => {});
     if (Platform.OS === 'android') {
       try {
@@ -43,6 +48,7 @@ function RootNavigator() {
     return (
       <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
         <StatusBar style="dark" />
+        <ServerStatusBanner />
         <AppUpdateModal />
       </View>
     );
@@ -52,6 +58,7 @@ function RootNavigator() {
   if (Platform.OS === 'android' && !hasSmsPermission) {
     return (
       <>
+        <ServerStatusBanner />
         <SMSPermissionGate />
         <AppUpdateModal />
       </>
@@ -61,6 +68,7 @@ function RootNavigator() {
   return (
     <>
       <StatusBar style="dark" />
+      <ServerStatusBanner />
       <AnimatedSplashOverlay />
       <AppUpdateModal />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FFFFFF' } }}>

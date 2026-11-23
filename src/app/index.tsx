@@ -249,7 +249,10 @@ export default function HomeScreen() {
     }
     router.push({
       pathname: '/payment-details',
-      params: { productId: product.id },
+      params: {
+        productId: product.id,
+        initialData: JSON.stringify(product),
+      },
     });
   };
 

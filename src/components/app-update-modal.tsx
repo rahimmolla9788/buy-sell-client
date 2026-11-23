@@ -83,6 +83,16 @@ export function AppUpdateModal() {
       url = `${BACKEND_API.WEBVIEW_URL}/downloads/app-latest.apk`;
     } else if (url.startsWith('/')) {
       url = `${BACKEND_API.WEBVIEW_URL}${url}`;
+    } else if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
+      const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (fileDMatch && fileDMatch[1]) {
+        url = `https://drive.google.com/uc?export=download&confirm=t&id=${fileDMatch[1]}`;
+      } else {
+        const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (idMatch && idMatch[1]) {
+          url = `https://drive.google.com/uc?export=download&confirm=t&id=${idMatch[1]}`;
+        }
+      }
     }
 
     try {

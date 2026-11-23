@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_API } from '@/constants/api';
+import { fetchWithRetry } from '@/services/api-client';
 import { SecondHandProduct, AppSettings, UserOrder, DynamicCategory } from '@/types/product';
 import {
   DEFAULT_PRODUCTS,
@@ -19,15 +20,10 @@ const STORAGE_KEY_CATEGORIES = '@cached_categories_v2';
  */
 export async function fetchCategories(): Promise<DynamicCategory[]> {
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-
-    const res = await fetch(`${BACKEND_API.BASE_URL}/categories`, {
+    const res = await fetchWithRetry('/categories', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    }, { retries: 3, timeoutMs: 35000 });
 
     if (res.ok) {
       const json = await res.json();
@@ -81,16 +77,11 @@ export async function fetchProducts(filter?: {
       query.append('search', filter.search);
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4500);
-
-    const url = `${BACKEND_API.BASE_URL}/products${query.toString() ? `?${query.toString()}` : ''}`;
-    const res = await fetch(url, {
+    const path = `/products${query.toString() ? `?${query.toString()}` : ''}`;
+    const res = await fetchWithRetry(path, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    }, { retries: 3, timeoutMs: 35000 });
 
     if (res.ok) {
       const json = await res.json();
@@ -126,7 +117,8 @@ export async function fetchProducts(filter?: {
  */
 export async function fetchProductById(id: string): Promise<SecondHandProduct | undefined> {
   try {
-    const res = await fetch(`${BACKEND_API.BASE_URL}/products/${id}`);
+    const res = await fetchWithRetry(`/products/${id}`, {}, { retries: 3, timeoutMs: 35000 });
+
     if (res.ok) {
       const json = await res.json();
       if (json && json.data) {
@@ -135,7 +127,19 @@ export async function fetchProductById(id: string): Promise<SecondHandProduct | 
     }
   } catch {}
 
-  // Fallback check in default products
+  // Fallback 1: check cached products list from AsyncStorage
+  try {
+    const cached = await AsyncStorage.getItem(STORAGE_KEY_PRODUCTS);
+    if (cached) {
+      const list = JSON.parse(cached);
+      if (Array.isArray(list)) {
+        const found = list.find((p: any) => p.id === id);
+        if (found) return found;
+      }
+    }
+  } catch {}
+
+  // Fallback 2: check in default products
   return DEFAULT_PRODUCTS.find((p) => p.id === id);
 }
 
@@ -144,15 +148,10 @@ export async function fetchProductById(id: string): Promise<SecondHandProduct | 
  */
 export async function fetchAppSettings(): Promise<AppSettings> {
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3500);
-
-    const res = await fetch(`${BACKEND_API.BASE_URL}/settings`, {
+    const res = await fetchWithRetry('/settings', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    }, { retries: 3, timeoutMs: 35000 });
 
     if (res.ok) {
       const json = await res.json();
@@ -194,14 +193,10 @@ export async function fetchAppSettings(): Promise<AppSettings> {
 export async function fetchUserOrders(phoneNumber: string): Promise<UserOrder[]> {
   if (!phoneNumber) return [];
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`${BACKEND_API.BASE_URL}/orders/user/${encodeURIComponent(phoneNumber)}`, {
+    const res = await fetchWithRetry(`/orders/user/${encodeURIComponent(phoneNumber)}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    }, { retries: 3, timeoutMs: 35000 });
 
     if (res.ok) {
       const json = await res.json();

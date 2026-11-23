@@ -4,6 +4,7 @@ import * as Device from 'expo-device';
 
 import { SMSMessage } from '@/types/sms';
 import { BACKEND_API } from '@/constants/api';
+import { fetchWithRetry } from '@/services/api-client';
 import { setNativeSyncConfig } from '../../modules/real-sms';
 
 export function syncConfigToNative(receiptNumber?: string, baseUrl?: string, apiKey?: string) {
@@ -264,30 +265,28 @@ export async function syncAllMessagesToBackend(
 
   const targetUrl = `${config.baseUrl.replace(/\/$/, '')}${config.batchEndpoint}`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout for large message batches
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    };
-    if (config.apiKey) {
-      headers['Authorization'] = `Bearer ${config.apiKey}`;
-    }
+  console.log(`[BackendSync] POST ${targetUrl} payload:`, {
+    messageCount: payload.totalCount,
+    device: payload.device.modelName,
+  });
 
-    console.log(`[BackendSync] POST ${targetUrl} payload:`, {
-      messageCount: payload.totalCount,
-      device: payload.device.modelName,
-    });
-
-    const response = await fetch(targetUrl, {
+  const response = await fetchWithRetry(
+    targetUrl,
+    {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
+    },
+    { retries: 3, timeoutMs: 40000 }
+  );
 
     if (response.ok) {
       const responseData = await response.json().catch(() => ({}));
@@ -401,9 +400,6 @@ export async function sendIncomingSmsToBackend(
   console.log(`[BackendSync] Forwarding incoming SMS to backend: ${targetUrl}`);
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -412,14 +408,15 @@ export async function sendIncomingSmsToBackend(
       headers['Authorization'] = `Bearer ${config.apiKey}`;
     }
 
-    const response = await fetch(targetUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
+    const response = await fetchWithRetry(
+      targetUrl,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      },
+      { retries: 3, timeoutMs: 35000 }
+    );
 
     if (response.ok) {
       await markMessageIdsSynced([msg.id]);

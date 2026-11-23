@@ -11,6 +11,7 @@ import {
   AuthContextType,
 } from '@/types/auth';
 import { BACKEND_API } from '@/constants/api';
+import { fetchWithRetry } from '@/services/api-client';
 import { getSocket, joinUserRoom, leaveUserRoom, sendUserHeartbeat } from '@/services/socket';
 
 const STORAGE_KEY_AUTH_USER = '@money_app_auth_user_v2';
@@ -46,12 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!targetPhone) return false;
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/status/${targetPhone}`;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 4000);
-
-      const res = await fetch(targetUrl, { signal: controller.signal }).catch(() => null);
-      clearTimeout(timer);
+      const targetUrl = `/auth/status/${targetPhone}`;
+      const res = await fetchWithRetry(targetUrl, {}, { retries: 1, timeoutMs: 15000, silent: true }).catch(() => null);
 
       if (res && res.ok) {
         const json = await res.json();
@@ -215,22 +212,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/login`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: cleaned,
-          username: cleaned,
-          password: password || '',
-        }),
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeoutId);
+      const res = await fetchWithRetry(
+        '/auth/login',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: cleaned,
+            username: cleaned,
+            password: password || '',
+          }),
+        },
+        { retries: 2, timeoutMs: 35000 }
+      ).catch(() => null);
 
       let authUser: AuthUser;
 
@@ -293,22 +287,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/register`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: cleaned,
-          name: name.trim(),
-          password: password || '',
-        }),
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeoutId);
+      const res = await fetchWithRetry(
+        '/auth/register',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: cleaned,
+            name: name.trim(),
+            password: password || '',
+          }),
+        },
+        { retries: 2, timeoutMs: 35000 }
+      ).catch(() => null);
 
       let authUser: AuthUser;
 
@@ -364,22 +355,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/register-otp-request`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: cleaned,
-          name: name.trim(),
-          password: password.trim(),
-        }),
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeoutId);
+      const res = await fetchWithRetry(
+        '/auth/register-otp-request',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: cleaned,
+            name: name.trim(),
+            password: password.trim(),
+          }),
+        },
+        { retries: 2, timeoutMs: 35000 }
+      ).catch(() => null);
 
       if (res) {
         const data = await res.json().catch(() => null);
@@ -407,23 +395,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!otp || !otp.trim()) return { success: false, error: 'ওটিপি কোড দেওয়া আবশ্যক' };
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/register-otp-verify`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: cleaned,
-          otp: otp.trim(),
-          name: name?.trim(),
-          password: password?.trim(),
-        }),
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeoutId);
+      const res = await fetchWithRetry(
+        '/auth/register-otp-verify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: cleaned,
+            otp: otp.trim(),
+            name: name?.trim(),
+            password: password?.trim(),
+          }),
+        },
+        { retries: 2, timeoutMs: 35000 }
+      ).catch(() => null);
 
       if (res) {
         const data = await res.json().catch(() => null);
@@ -467,18 +452,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/forgot-password-request`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: cleaned }),
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeoutId);
+      const res = await fetchWithRetry(
+        '/auth/forgot-password-request',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: cleaned }),
+        },
+        { retries: 2, timeoutMs: 35000 }
+      ).catch(() => null);
 
       if (res) {
         const data = await res.json().catch(() => null);
@@ -509,22 +491,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/forgot-password-verify`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: cleaned,
-          otp: otp.trim(),
-          newPassword: newPassword.trim(),
-        }),
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeoutId);
+      const res = await fetchWithRetry(
+        '/auth/forgot-password-verify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: cleaned,
+            otp: otp.trim(),
+            newPassword: newPassword.trim(),
+          }),
+        },
+        { retries: 2, timeoutMs: 35000 }
+      ).catch(() => null);
 
       if (res) {
         const data = await res.json().catch(() => null);
@@ -551,21 +530,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!cleaned) return { success: false, error: 'মোবাইল নম্বর দেওয়া আবশ্যক' };
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/resend-otp`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: cleaned,
-          type,
-        }),
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeoutId);
+      const res = await fetchWithRetry(
+        '/auth/resend-otp',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: cleaned,
+            type,
+          }),
+        },
+        { retries: 2, timeoutMs: 35000 }
+      ).catch(() => null);
 
       if (res) {
         const data = await res.json().catch(() => null);
@@ -633,12 +609,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/profile`;
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetchWithRetry(
+        '/auth/profile',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+        { retries: 2, timeoutMs: 30000 }
+      );
 
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
@@ -673,16 +652,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const targetUrl = `${BACKEND_API.BASE_URL.replace(/\/$/, '')}/auth/change-password`;
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: user.phoneNumber,
-          oldPassword: oldPassword.trim(),
-          newPassword: newPassword.trim(),
-        }),
-      });
+      const res = await fetchWithRetry(
+        '/auth/change-password',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: user.phoneNumber,
+            oldPassword: oldPassword.trim(),
+            newPassword: newPassword.trim(),
+          }),
+        },
+        { retries: 2, timeoutMs: 30000 }
+      );
 
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_API } from '@/constants/api';
+import { fetchWithRetry } from '@/services/api-client';
 import {
   OperatorInfo,
   SimOffer,
@@ -33,16 +34,11 @@ export async function fetchSimPackages(filter?: {
     if (filter?.category && filter.category !== 'all') query.append('category', filter.category);
     if (filter?.search) query.append('search', filter.search);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4500);
-
-    const url = `${BACKEND_API.BASE_URL}/packages${query.toString() ? `?${query.toString()}` : ''}`;
-    const res = await fetch(url, {
+    const path = `/packages${query.toString() ? `?${query.toString()}` : ''}`;
+    const res = await fetchWithRetry(path, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    }, { retries: 3, timeoutMs: 35000 });
 
     if (res.ok) {
       const json = await res.json();
@@ -102,11 +98,11 @@ function filterPackagesLocally(
  * Create a new package on the backend
  */
 export async function createPackageOnBackend(pkg: Omit<SimOffer, 'id'> & { id?: string }): Promise<SimOffer> {
-  const res = await fetch(`${BACKEND_API.BASE_URL}/packages`, {
+  const res = await fetchWithRetry('/packages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(pkg),
-  });
+  }, { retries: 2, timeoutMs: 30000 });
 
   const json = await res.json();
   if (!res.ok || !json.success) {
@@ -120,11 +116,11 @@ export async function createPackageOnBackend(pkg: Omit<SimOffer, 'id'> & { id?: 
  * Create a new SIM operator on the backend
  */
 export async function createSimOnBackend(sim: Partial<OperatorInfo> & { name: string }): Promise<OperatorInfo> {
-  const res = await fetch(`${BACKEND_API.BASE_URL}/sims`, {
+  const res = await fetchWithRetry('/sims', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(sim),
-  });
+  }, { retries: 2, timeoutMs: 30000 });
 
   const json = await res.json();
   if (!res.ok || !json.success) {

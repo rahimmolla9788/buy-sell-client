@@ -19,10 +19,10 @@ export function getSocket(): Socket {
       transports,
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: isVercel ? 5 : Infinity,
-      reconnectionDelay: 5000,
-      reconnectionDelayMax: 20000,
-      timeout: 15000,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      timeout: 30000,
     });
 
     socketInstance.on('connect', () => {

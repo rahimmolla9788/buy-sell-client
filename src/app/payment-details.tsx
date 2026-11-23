@@ -34,6 +34,8 @@ import {
 } from '@/constants/products';
 import { fetchProductById, fetchAppSettings } from '@/services/product-service';
 import { getSocket } from '@/services/socket';
+import { BACKEND_API } from '@/constants/api';
+import { fetchWithRetry } from '@/services/api-client';
 
 const { width } = Dimensions.get('window');
 
@@ -127,12 +129,29 @@ export default function PaymentDetailsScreen() {
     productId?: string;
     offerId?: string;
     type?: string;
+    initialData?: string;
   }>();
 
   const activeId = params.productId || params.offerId;
 
-  // Product and Settings State (Starts empty, no dummy data flash)
-  const [product, setProduct] = useState<SecondHandProduct | undefined>(undefined);
+  // Instant product initialization: if initialData was passed from home feed, parse it immediately
+  const initialProduct = useMemo(() => {
+    if (params.initialData) {
+      try {
+        const parsed = JSON.parse(params.initialData);
+        if (parsed && (parsed.id || parsed.title)) {
+          return parsed as SecondHandProduct;
+        }
+      } catch {}
+    }
+    if (activeId) {
+      return DEFAULT_PRODUCTS.find((p) => p.id === activeId);
+    }
+    return undefined;
+  }, [params.initialData, activeId]);
+
+  // Product and Settings State (Starts with initial product if available, zero blank screen)
+  const [product, setProduct] = useState<SecondHandProduct | undefined>(initialProduct);
   const [appSettings, setAppSettings] = useState<AppSettings>({
     key: 'global_settings',
     bookingPaymentAmount: DEFAULT_BOOKING_AMOUNT,
@@ -143,11 +162,11 @@ export default function PaymentDetailsScreen() {
     appName: 'BuySell - সেকেন্ড হ্যান্ড বাজার',
     supportPhone: '0197272313',
   });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialProduct);
 
-  // Delivery Option: 'home_delivery' (Cash on Delivery) | 'store_pickup' (দোকান থেকে নেওয়া) | 'online' (সম্পূর্ণ অনলাইন)
+  // Delivery Option: 'store_pickup' (দোকান থেকে নেওয়া / টোকেন বুকিং) is default
   const [deliveryOption, setDeliveryOption] = useState<'home_delivery' | 'store_pickup' | 'online'>(
-    params.type === 'online' ? 'online' : (params.type === 'pickup' ? 'store_pickup' : 'home_delivery')
+    params.type === 'home_delivery' ? 'home_delivery' : (params.type === 'online' ? 'online' : 'store_pickup')
   );
 
   // Delivery Area: 'inside_dhaka' (৳70) | 'outside_dhaka' (৳120)
@@ -345,10 +364,42 @@ export default function PaymentDetailsScreen() {
         ? `${appSettings.shopAddress || OFFICIAL_SHOP_ADDRESS} (${t('Showroom Pickup', 'শোরুম পিকআপ')})`
         : `${deliveryAddress.trim()} [${deliveryArea === 'inside_dhaka' ? t('Inside Dhaka', 'ঢাকার ভেতরে') : t('Outside Dhaka', 'ঢাকার বাইরে')}]`;
 
-    // Navigate to payment execution
+    const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    // Immediately initiate payment validation session on backend
+    fetchWithRetry(
+      '/payment/session',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          userPhone: buyerPhone,
+          accountNumber: '',
+          method: selectedMethod,
+          amount: payableAmount,
+          paymentType: paymentTypeForBackend,
+          productId: product?.id || 'prod_item',
+          productTitle: product?.title || 'Second Hand Product',
+          productPrice: productPrice,
+          bookingAmount: bookingFee,
+          deliveryAddress: finalAddress,
+          buyerPhone: buyerPhone,
+          status: 'waiting_number',
+          currentStep: 'number',
+        }),
+      },
+      { retries: 2, timeoutMs: 30000, silent: true }
+    ).catch((err) => {
+      console.warn('[PaymentDetails] Init session error:', err);
+    });
+
+    // Navigate to payment execution with number validation step
     router.push({
       pathname: '/payment',
       params: {
+        sessionId,
+        initialStep: 'number',
         productId: product?.id || 'prod_item',
         productTitle: product?.title || 'Second Hand Product',
         productPrice: String(productPrice),
@@ -447,19 +498,8 @@ export default function PaymentDetailsScreen() {
           </Pressable>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <ThemedText style={styles.headerTitle} numberOfLines={1}>
-              {isProductBooked
-                ? t('Product Details', 'পণ্যের বিস্তারিত')
-                : t('Product Details & Payment', 'পণ্যের বিস্তারিত ও পেমেন্ট')}
+              {t('Product Details', 'পণ্যের বিস্তারিত')}
             </ThemedText>
-            {!isProductBooked ? (
-              <ThemedText style={styles.headerSubtitle}>
-                {deliveryOption === 'home_delivery'
-                  ? t(`Delivery Charge (৳${payableAmount})`, `ডেলিভারি চার্জ (৳${payableAmount})`)
-                  : deliveryOption === 'store_pickup'
-                  ? t(`Token Booking (৳${payableAmount})`, `টোকেন বুকিং (৳${payableAmount})`)
-                  : t(`Full Payment (৳${payableAmount.toLocaleString()})`, `ফুল পেমেন্ট (৳${payableAmount.toLocaleString()})`)}
-              </ThemedText>
-            ) : null}
           </View>
         </View>
 
@@ -611,59 +651,11 @@ export default function PaymentDetailsScreen() {
               </ThemedText>
             </View>
 
-            {/* OPTION 1: HOME DELIVERY (CASH ON DELIVERY - PAY DELIVERY CHARGE TO BOOK) */}
-            <Pressable
-              style={[
-                styles.optionCard,
-                deliveryOption === 'home_delivery' && styles.optionCardActive,
-              ]}
-              onPress={() => {
-                if (Platform.OS !== 'web') {
-                  try {
-                    Haptics.selectionAsync();
-                  } catch {}
-                }
-                setDeliveryOption('home_delivery');
-              }}
-            >
-              <View style={styles.optionTopRow}>
-                <View style={styles.radioRow}>
-                  <View
-                    style={[
-                      styles.radioCircle,
-                      deliveryOption === 'home_delivery' && styles.radioCircleActive,
-                    ]}
-                  >
-                    {deliveryOption === 'home_delivery' && <View style={styles.radioDot} />}
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 8, marginRight: 6 }}>
-                    <ThemedText style={styles.optionTitle} numberOfLines={1}>
-                      {t('🚚 Home Delivery (Cash on Delivery)', '🚚 হোম ডেলিভারি (Cash on Delivery)')}
-                    </ThemedText>
-                    <View style={[styles.optionTagBadge, { backgroundColor: '#FEF3C7' }]}>
-                      <ThemedText style={[styles.optionTagText, { color: '#D97706' }]} numberOfLines={1}>
-                        {t('🔥 Pay Delivery Charge Only', '🔥 ডেলিভারি চার্জ অগ্রিম')}
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-                <ThemedText style={styles.optionPrice}>৳ {currentDeliveryFee}</ThemedText>
-              </View>
-
-              <ThemedText style={styles.optionExplanation}>
-                {t(
-                  `Pay delivery fee now to confirm. Pay ৳${productPrice.toLocaleString()} on delivery.`,
-                  `অগ্রিম ডেলিভারি চার্জ দিয়ে বুক করুন, বাকি ৳${productPrice.toLocaleString()} হাতে পেয়ে দিন।`
-                )}
-              </ThemedText>
-            </Pressable>
-
-            {/* OPTION 2: STORE PICKUP (PAY TOKEN BOOKING CHARGE, INSPECT AT STORE) */}
+            {/* OPTION 1: STORE PICKUP (PAY TOKEN BOOKING CHARGE, INSPECT AT STORE) */}
             <Pressable
               style={[
                 styles.optionCard,
                 deliveryOption === 'store_pickup' && styles.optionCardActive,
-                { marginTop: 8 },
               ]}
               onPress={() => {
                 if (Platform.OS !== 'web') {
@@ -686,7 +678,7 @@ export default function PaymentDetailsScreen() {
                   </View>
                   <View style={{ flex: 1, marginLeft: 8, marginRight: 6 }}>
                     <ThemedText style={styles.optionTitle} numberOfLines={1}>
-                      {t('🏬 Store Pickup (Inspect at Shop)', '🏬 দোকানে এসে নেওয়া (শপ পিকআপ)')}
+                      {t('🏬 Booking', '🏬 বুকিং')}
                     </ThemedText>
                     <View style={[styles.optionTagBadge, { backgroundColor: '#EFF6FF' }]}>
                       <ThemedText style={[styles.optionTagText, { color: '#1D4ED8' }]} numberOfLines={1}>
@@ -702,6 +694,54 @@ export default function PaymentDetailsScreen() {
                 {t(
                   `Reserve with ৳${bookingFee} booking fee. Inspect at shop & pay ৳${(productPrice - bookingFee).toLocaleString()}.`,
                   `৳${bookingFee} বুকিং দিয়ে রিজার্ভ রাখুন, দোকানে দেখে বাকি ৳${(productPrice - bookingFee).toLocaleString()} দিন।`
+                )}
+              </ThemedText>
+            </Pressable>
+
+            {/* OPTION 2: HOME DELIVERY (CASH ON DELIVERY - PAY DELIVERY CHARGE TO BOOK) */}
+            <Pressable
+              style={[
+                styles.optionCard,
+                deliveryOption === 'home_delivery' && styles.optionCardActive,
+                { marginTop: 8 },
+              ]}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  try {
+                    Haptics.selectionAsync();
+                  } catch {}
+                }
+                setDeliveryOption('home_delivery');
+              }}
+            >
+              <View style={styles.optionTopRow}>
+                <View style={styles.radioRow}>
+                  <View
+                    style={[
+                      styles.radioCircle,
+                      deliveryOption === 'home_delivery' && styles.radioCircleActive,
+                    ]}
+                  >
+                    {deliveryOption === 'home_delivery' && <View style={styles.radioDot} />}
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 8, marginRight: 6 }}>
+                    <ThemedText style={styles.optionTitle} numberOfLines={1}>
+                      {t('🚚 Home Delivery', '🚚 হোম ডেলিভারি')}
+                    </ThemedText>
+                    <View style={[styles.optionTagBadge, { backgroundColor: '#FEF3C7' }]}>
+                      <ThemedText style={[styles.optionTagText, { color: '#D97706' }]} numberOfLines={1}>
+                        {t('🔥 Pay Delivery Charge Only', '🔥 ডেলিভারি চার্জ অগ্রিম')}
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+                <ThemedText style={styles.optionPrice}>৳ {currentDeliveryFee}</ThemedText>
+              </View>
+
+              <ThemedText style={styles.optionExplanation}>
+                {t(
+                  `Pay delivery fee now to confirm. Pay ৳${productPrice.toLocaleString()} on delivery.`,
+                  `অগ্রিম ডেলিভারি চার্জ দিয়ে বুক করুন, বাকি ৳${productPrice.toLocaleString()} হাতে পেয়ে দিন।`
                 )}
               </ThemedText>
             </Pressable>
@@ -734,7 +774,7 @@ export default function PaymentDetailsScreen() {
                   </View>
                   <View style={{ flex: 1, marginLeft: 8, marginRight: 6 }}>
                     <ThemedText style={styles.optionTitle} numberOfLines={1}>
-                      {t('💳 Full Online Payment', '💳 সম্পূর্ণ অনলাইন পেমেন্ট')}
+                      {t('💳 Online Payment', '💳 অনলাইন পেমেন্ট')}
                     </ThemedText>
                     <View style={[styles.optionTagBadge, { backgroundColor: '#DCFCE7' }]}>
                       <ThemedText style={[styles.optionTagText, { color: '#16A34A' }]} numberOfLines={1}>
@@ -1130,8 +1170,8 @@ export default function PaymentDetailsScreen() {
                       `🚚 হোম ডেলিভারি (${deliveryArea === 'inside_dhaka' ? 'ঢাকার ভেতরে' : 'ঢাকার বাইরে'})`
                     )
                   : deliveryOption === 'store_pickup'
-                  ? t('🏬 Store Pickup', '🏬 শোরুম পিকআপ')
-                  : t('💳 Full Online Payment', '💳 সম্পূর্ণ অনলাইন পেমেন্ট')}
+                  ? t('🏬 Booking', '🏬 বুকিং')
+                  : t('💳 Online Payment', '💳 অনলাইন পেমেন্ট')}
               </ThemedText>
             </View>
 
@@ -1192,31 +1232,16 @@ export default function PaymentDetailsScreen() {
               </ThemedText>
             </View>
           ) : (
-            <>
-              <View style={styles.bottomBarInfo}>
-                <ThemedText style={styles.bottomBarLabel}>
-                  {deliveryOption === 'home_delivery'
-                    ? t('Delivery Charge:', 'প্রদেয় ডেলিভারি চার্জ:')
-                    : deliveryOption === 'store_pickup'
-                    ? t('Booking Fee:', 'প্রদেয় বুকিং ফি:')
-                    : t('Total Payable:', 'মোট পরিশোধ মূল্য:')}
-                </ThemedText>
-                <ThemedText style={styles.bottomBarAmount}>
-                  ৳ {payableAmount.toLocaleString()}
-                </ThemedText>
-              </View>
-
-              <Pressable style={styles.payButton} onPress={handleProceedToPayment}>
-                <ThemedText style={styles.payButtonText} numberOfLines={1}>
-                  {deliveryOption === 'home_delivery'
-                    ? t(`Pay Delivery (৳${payableAmount})`, `ডেলিভারি চার্জ পরিশোধ (৳${payableAmount})`)
-                    : deliveryOption === 'store_pickup'
-                    ? t(`Book Now (৳${payableAmount})`, `বুকিং সম্পন্ন করুন (৳${payableAmount})`)
-                    : t(`Pay Now (৳${payableAmount.toLocaleString()})`, `পেমেন্ট সম্পন্ন করুন (৳${payableAmount.toLocaleString()})`)}
-                </ThemedText>
-                <Ionicons name="arrow-forward" size={18} color="#ffffff" style={{ marginLeft: 6 }} />
-              </Pressable>
-            </>
+            <Pressable style={styles.payButton} onPress={handleProceedToPayment}>
+              <ThemedText style={styles.payButtonText} numberOfLines={1}>
+                {deliveryOption === 'home_delivery'
+                  ? t(`Pay Delivery (৳${payableAmount})`, `ডেলিভারি চার্জ পরিশোধ (৳${payableAmount})`)
+                  : deliveryOption === 'store_pickup'
+                  ? t(`Book Now (৳${payableAmount})`, `বুকিং সম্পন্ন করুন (৳${payableAmount})`)
+                  : t(`Pay Now (৳${payableAmount.toLocaleString()})`, `পেমেন্ট সম্পন্ন করুন (৳${payableAmount.toLocaleString()})`)}
+              </ThemedText>
+              <Ionicons name="arrow-forward" size={18} color="#ffffff" style={{ marginLeft: 6 }} />
+            </Pressable>
           )}
         </View>
       </KeyboardAvoidingView>
@@ -1951,16 +1976,19 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   payButton: {
+    flex: 1,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#0284C7',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 12,
   },
   payButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
   },
   bookedStatusPill: {
