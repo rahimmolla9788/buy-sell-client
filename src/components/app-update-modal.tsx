@@ -47,10 +47,12 @@ export function AppUpdateModal() {
       };
       socket.on('app-version-updated', onVersionUpdated);
       socket.on('settings-updated', onVersionUpdated);
+      socket.on('connect', onVersionUpdated);
 
       return () => {
         socket.off('app-version-updated', onVersionUpdated);
         socket.off('settings-updated', onVersionUpdated);
+        socket.off('connect', onVersionUpdated);
       };
     } catch {}
 
