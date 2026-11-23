@@ -2,14 +2,11 @@ import { Platform } from 'react-native';
 
 /**
  * ============================================================================
- * 💻 LOCAL DEVELOPMENT SERVER CONFIGURATION
+ * 🌐 PRODUCTION / CLOUD SERVER CONFIGURATION (Railway)
  * ============================================================================
- * In Android Emulator, 10.0.2.2 connects directly to the host PC port 5000.
+ * Deployed on Railway: https://buy-sell-server-production.up.railway.app
  */
-// 📱 Change this SERVER_URL to your free cloud hosting URL when deploying
-// (e.g. 'https://your-app.onrender.com' or 'https://your-app.up.railway.app')
-const HOST = Platform.OS === 'android' ? '10.0.2.2' : '127.0.0.1';
-const SERVER_URL = `http://${HOST}:5000`;
+const SERVER_URL = 'https://buy-sell-server-production.up.railway.app';
 
 export const BACKEND_API = {
   // 🌐 Web App URL loaded inside the WebView:

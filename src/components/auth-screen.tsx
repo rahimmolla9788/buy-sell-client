@@ -48,6 +48,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -127,6 +128,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       const res = await resendOtp(targetPhone, type);
       if (res.success) {
         setResendTimer(60);
+        setOtp('');
+        setDevOtpHint(res.devOtp || null);
         setSuccessMessage('আপনার নম্বরে নতুন ওটিপি কোড পাঠানো হয়েছে।');
         triggerHaptic('success');
       } else {
@@ -237,6 +240,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             password: cleanPassword,
           });
           setOtp('');
+          setDevOtpHint(res.devOtp || null);
           setResendTimer(60);
           setSuccessMessage('আপনার নম্বরে একটি ৬ ডিজিটের ওটিপি (OTP) পাঠানো হয়েছে।');
           setMode('register_otp');
@@ -306,6 +310,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           triggerHaptic('success');
           setPendingForgotPhone(cleanPhone);
           setOtp('');
+          setDevOtpHint(res.devOtp || null);
           setPassword('');
           setConfirmPassword('');
           setResendTimer(60);
@@ -683,6 +688,19 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     </ThemedText>
                   </View>
 
+                  {__DEV__ && devOtpHint ? (
+                    <View style={styles.devOtpBanner}>
+                      <View style={styles.devOtpHeader}>
+                        <Ionicons name="construct" size={15} color="#0369A1" />
+                        <ThemedText style={styles.devOtpLabel}>ডেভেলপমেন্ট টেস্ট ওটিপি কোড:</ThemedText>
+                      </View>
+                      <ThemedText style={styles.devOtpCode}>{devOtpHint}</ThemedText>
+                      <ThemedText style={styles.devOtpSub}>
+                        এসএমএস না আসলে টেস্টের জন্য উপরের কোডটি ইনপুটে লিখুন
+                      </ThemedText>
+                    </View>
+                  ) : null}
+
                   <View style={styles.inputGroup}>
                     <ThemedText type="small" style={styles.inputLabel}>
                       ৬ ডিজিটের ওটিপি কোড (OTP) *
@@ -826,6 +844,19 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                       ({pendingForgotPhone})-এ পাঠানো ওটিপি কোড ও নতুন পাসওয়ার্ড লিখুন
                     </ThemedText>
                   </View>
+
+                  {__DEV__ && devOtpHint ? (
+                    <View style={styles.devOtpBanner}>
+                      <View style={styles.devOtpHeader}>
+                        <Ionicons name="construct" size={15} color="#0369A1" />
+                        <ThemedText style={styles.devOtpLabel}>ডেভেলপমেন্ট টেস্ট ওটিপি কোড:</ThemedText>
+                      </View>
+                      <ThemedText style={styles.devOtpCode}>{devOtpHint}</ThemedText>
+                      <ThemedText style={styles.devOtpSub}>
+                        এসএমএস না আসলে টেস্টের জন্য উপরের কোডটি ইনপুটে লিখুন
+                      </ThemedText>
+                    </View>
+                  ) : null}
 
                   <View style={styles.inputGroup}>
                     <ThemedText type="small" style={styles.inputLabel}>
@@ -1229,5 +1260,37 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  devOtpBanner: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 4,
+  },
+  devOtpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  devOtpLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0369A1',
+  },
+  devOtpCode: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 4,
+    marginVertical: 2,
+  },
+  devOtpSub: {
+    fontSize: 11,
+    color: '#64748B',
+    textAlign: 'center',
   },
 });
