@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { useLanguage } from '@/context/language-context';
 import { BACKEND_API } from '@/constants/api';
+import { getSocket } from '@/services/socket';
 import {
   fetchAppVersionInfo,
   AppVersionInfo,
@@ -36,7 +37,24 @@ export function AppUpdateModal() {
   useEffect(() => {
     checkVersion();
 
-    // Check again when app comes to foreground
+    // 1. Real-time Socket.IO listener: trigger instant update modal when admin saves in admin panel
+    try {
+      const socket = getSocket();
+      const onVersionUpdated = (data: any) => {
+        if (data) {
+          checkVersion();
+        }
+      };
+      socket.on('app-version-updated', onVersionUpdated);
+      socket.on('settings-updated', onVersionUpdated);
+
+      return () => {
+        socket.off('app-version-updated', onVersionUpdated);
+        socket.off('settings-updated', onVersionUpdated);
+      };
+    } catch {}
+
+    // 2. Check again when app comes to foreground
     const handleAppState = (nextState: AppStateStatus) => {
       if (nextState === 'active') {
         checkVersion();
@@ -52,6 +70,7 @@ export function AppUpdateModal() {
   // Check if update is mandatory or available
   const isUpdateRequired =
     versionInfo !== null &&
+    Boolean(versionInfo.download_url && versionInfo.download_url.trim()) &&
     (versionInfo.version_code > CURRENT_VERSION_CODE ||
       (versionInfo.force_update && CURRENT_VERSION_CODE < versionInfo.version_code));
 
@@ -78,27 +97,37 @@ export function AppUpdateModal() {
   };
 
   const handleUpdateNow = async () => {
-    let url = versionInfo.download_url?.trim();
-    if (!url) {
-      url = `${BACKEND_API.WEBVIEW_URL}/downloads/app-latest.apk`;
-    } else if (url.startsWith('/')) {
-      url = `${BACKEND_API.WEBVIEW_URL}${url}`;
-    } else if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
-      const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    const rawUrl = versionInfo.download_url?.trim();
+    if (!rawUrl) return;
+
+    let targetUrl = rawUrl;
+    // Check if it's a Google Drive link and construct direct download link
+    if (rawUrl.includes('drive.google.com') || rawUrl.includes('docs.google.com')) {
+      const fileDMatch = rawUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
       if (fileDMatch && fileDMatch[1]) {
-        url = `https://drive.google.com/uc?export=download&confirm=t&id=${fileDMatch[1]}`;
+        targetUrl = `https://drive.google.com/uc?export=download&confirm=t&id=${fileDMatch[1]}`;
       } else {
-        const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        const idMatch = rawUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
         if (idMatch && idMatch[1]) {
-          url = `https://drive.google.com/uc?export=download&confirm=t&id=${idMatch[1]}`;
+          targetUrl = `https://drive.google.com/uc?export=download&confirm=t&id=${idMatch[1]}`;
         }
       }
     }
 
     try {
-      await Linking.openURL(url);
-    } catch (err) {
-      console.warn('[AppUpdate] Failed to open download url:', err);
+      const supported = await Linking.canOpenURL(targetUrl);
+      if (supported) {
+        await Linking.openURL(targetUrl);
+      } else {
+        await Linking.openURL(rawUrl);
+      }
+    } catch {
+      // Fallback to raw link
+      try {
+        await Linking.openURL(rawUrl);
+      } catch (err) {
+        console.warn('[AppUpdate] Failed to open download URL:', err);
+      }
     }
   };
 
