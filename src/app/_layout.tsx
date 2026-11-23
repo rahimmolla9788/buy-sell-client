@@ -31,6 +31,9 @@ function RootNavigator() {
   const { hasSmsPermission, isPermissionChecking } = useSMS();
 
   useEffect(() => {
+    // Hide native splash screen
+    SplashScreen.hideAsync().catch(() => {});
+
     // Initiate background wake-up ping for free cloud hosting cold starts
     wakeUpServer();
 
