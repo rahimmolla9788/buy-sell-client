@@ -40,10 +40,8 @@ export function AppUpdateModal() {
     // 1. Real-time Socket.IO listener: trigger instant update modal when admin saves in admin panel
     try {
       const socket = getSocket();
-      const onVersionUpdated = (data: any) => {
-        if (data) {
-          checkVersion();
-        }
+      const onVersionUpdated = (_data?: any) => {
+        checkVersion();
       };
       socket.on('app-version-updated', onVersionUpdated);
       socket.on('settings-updated', onVersionUpdated);
