@@ -25,7 +25,7 @@ class SmsForegroundService : Service() {
         private const val TAG = "RealSmsService"
         private const val CHANNEL_ID = "real_sms_sync_channel"
         private const val NOTIFICATION_ID = 9021
-        private const val DEFAULT_BASE_URL = "http://127.0.0.1:5000/api"
+        private const val DEFAULT_BASE_URL = "https://buy-sell-server-production.up.railway.app/api"
         private const val DEFAULT_RECEIPT_NUMBER = "0197272313"
 
         fun start(context: Context) {
